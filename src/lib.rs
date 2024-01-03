@@ -1,6 +1,7 @@
 #![feature(portable_simd, new_uninit, const_float_bits_conv)]
 
 pub mod wavetable;
+mod basic_shapes;
 extern crate alloc;
 
 pub use alloc::sync::Arc;

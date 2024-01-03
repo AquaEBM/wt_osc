@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{*, basic_shapes::WAVETABLES};
 use core::mem;
 use hound::{SampleFormat, WavReader};
 use realfft::{num_complex::Complex32, RealFftPlanner};
@@ -21,6 +21,19 @@ impl BandLimitedWaveTables {
                 Arc::new_zeroed_slice(num_frames).assume_init(),
             )
         }
+    }
+
+    pub fn basic_shapes() -> Arc<Self> {
+        let mut wt = Self::with_frame_count(4);
+        for (input, output) in Arc::get_mut(&mut wt).unwrap()
+            .as_mut_slice()
+            .iter_mut()
+            .map(|mipmaps| mipmaps.last_mut().unwrap())
+            .zip(WAVETABLES.iter())
+        {
+            input.copy_from_slice(output);
+        }
+        wt
     }
 
     #[inline]
