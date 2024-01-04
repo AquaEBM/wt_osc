@@ -46,7 +46,7 @@ pub trait WTOscParams {
 
     fn get_transpose(&self, cluster_idx: usize) -> Float;
 
-    fn get_frame(&self, cluster_idx: usize) -> UInt;
+    fn get_frame(&self, cluster_idx: usize) -> Float;
 
     fn get_random(&self, cluster_idx: usize) -> Float;
 

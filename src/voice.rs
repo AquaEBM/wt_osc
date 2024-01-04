@@ -67,7 +67,7 @@ impl WTOscVoice {
         param_values: &T,
         cluster_idx: usize,
         voice_idx: usize,
-    ) -> (usize, UInt, Float, Float) {
+    ) -> (usize, Float, Float, Float) {
         (
             param_values.get_num_unison_voices(cluster_idx)[voice_idx],
             splat_slot(&param_values.get_frame(cluster_idx), voice_idx).unwrap(),
@@ -148,7 +148,7 @@ impl WTOscVoice {
             .iter_mut()
             .zip(norm_detunes.iter())
             .for_each(|(osc, norm_detune)| {
-                osc.set_frame_for_smoothing(frame);
+                osc.set_frame_smoothed(frame, num_samples);
                 osc.set_detune_semitones_smoothed(
                     norm_detune.mul_add(detune, transpose),
                     num_samples,

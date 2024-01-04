@@ -6,7 +6,7 @@ pub struct Oscillator {
     pub base_phase_delta: Float,
     phase_delta: LogSmoother,
     phase: UInt,
-    frame: UInt,
+    frame: LinearSmoother,
 }
 
 impl Oscillator {
@@ -23,6 +23,11 @@ impl Oscillator {
     pub fn set_phase(&mut self, phase: UInt) {
         self.phase = phase;
     }
+
+    #[inline]
+    unsafe fn get_frame_index(&self) -> UInt {
+        unsafe { self.frame.get_current().to_int_unchecked() }
+    } 
 
     #[inline]
     pub fn update_phase_delta_smoother(&mut self) {
@@ -45,12 +50,12 @@ impl Oscillator {
             .set_instantly(self.base_phase_delta * semitones_to_ratio(semitones));
     }
 
-    pub fn set_frame_for_smoothing(&mut self, frame: UInt) {
-        self.frame = frame;
+    pub fn set_frame_smoothed(&mut self, frame: Float, num_samples: usize) {
+        self.frame.set_target(frame, num_samples);
     }
 
-    pub fn set_frame(&mut self, frame: UInt) {
-        self.frame = frame;
+    pub fn set_frame(&mut self, frame: Float) {
+        self.frame.set_instantly(frame);
     }
 
     #[inline]
@@ -61,13 +66,15 @@ impl Oscillator {
     ) -> Float {
         self.update_phase_delta_smoother();
         let phase_delta = self.advance_phase();
-        table.resample_select(phase_delta, self.frame, self.phase, mask)
+        let frame_idx = unsafe { self.get_frame_index() };
+        table.resample_select(phase_delta, frame_idx, self.phase, mask)
     }
 
     #[inline]
     pub fn advance_and_resample(&mut self, table: &BandLimitedWaveTables) -> Float {
         self.update_phase_delta_smoother();
         let phase_delta = self.advance_phase();
-        table.resample(phase_delta, self.frame, self.phase)
+        let frame_idx = unsafe { self.get_frame_index() };
+        table.resample(phase_delta, frame_idx, self.phase)
     }
 }
