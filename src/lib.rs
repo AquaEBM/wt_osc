@@ -1,7 +1,7 @@
 #![feature(portable_simd, new_uninit, const_float_bits_conv)]
 
-pub mod wavetable;
 mod basic_shapes;
+pub mod wavetable;
 extern crate alloc;
 
 pub use alloc::sync::Arc;
@@ -62,7 +62,7 @@ pub trait WTOscParams {
 }
 
 pub struct WTOsc<T> {
-    pub params: T,
+    params: T,
     table_reciever: Option<LenderReciever<BandLimitedWaveTables>>,
     sr: f32,
     table: Arc<BandLimitedWaveTables>,
@@ -185,5 +185,9 @@ impl<T: WTOscParams> WTOsc<T> {
         }
 
         true
+    }
+
+    pub fn params(&self) -> &T {
+        &self.params
     }
 }
