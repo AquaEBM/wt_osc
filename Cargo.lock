@@ -78,7 +78,7 @@ dependencies = [
 [[package]]
 name = "polygraph"
 version = "0.1.0"
-source = "git+https://github.com/AquaEBM/polygraph.git#22893351e1f4b496b02acb981e2ea2f026370788"
+source = "git+https://github.com/AquaEBM/polygraph.git#03d75d79491e8595e45c836d5d24f444c66c056b"
 dependencies = [
  "fnv",
  "plugin_util",
