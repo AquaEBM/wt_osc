@@ -70,7 +70,7 @@ impl WTOscVoice {
     ) -> (usize, Float, Float, Float) {
         (
             param_values.get_num_unison_voices(cluster_idx)[voice_idx],
-            splat_slot(&param_values.get_frame(cluster_idx), voice_idx).unwrap(),
+            splat_slot(&param_values.get_norm_frame(cluster_idx), voice_idx).unwrap(),
             splat_slot(&param_values.get_transpose(cluster_idx), voice_idx).unwrap(),
             splat_slot(&param_values.get_detune(cluster_idx), voice_idx).unwrap(),
         )
@@ -102,7 +102,7 @@ impl WTOscVoice {
         sr: f32,
     ) {
         let randomisation = splat_slot(&param_values.get_random(cluster_idx), voice_idx).unwrap();
-        let base_phase_delta = Float::splat(440. / sr * f32::exp2((note as i8 - 69) as f32 / 12.));
+        let base_phase_delta = Float::splat(440. * f32::exp2((note as i8 - 69) as f32 / 12.) / sr);
         let phases = param_values.get_starting_phases();
 
         self.initialize(base_phase_delta, randomisation, phases);
@@ -136,7 +136,7 @@ impl WTOscVoice {
         param_values: &T,
         cluster_idx: usize,
         voice_idx: usize,
-        num_samples: usize,
+        inc: Float,
     ) {
         let (num_unison_voices, frame, transpose, detune) =
             Self::get_voice_params(param_values, cluster_idx, voice_idx);
@@ -148,10 +148,10 @@ impl WTOscVoice {
             .iter_mut()
             .zip(norm_detunes.iter())
             .for_each(|(osc, norm_detune)| {
-                osc.set_frame_smoothed(frame, num_samples);
+                osc.set_frame_smoothed(frame, inc);
                 osc.set_detune_semitones_smoothed(
                     norm_detune.mul_add(detune, transpose),
-                    num_samples,
+                    inc,
                 );
             });
     }
@@ -182,6 +182,13 @@ impl WTOscVoice {
             UNISON_DETUNES
                 .get_unchecked(num)
                 .get_unchecked(..num_vectors)
+        }
+    }
+
+    pub fn set_frame_instantly(&mut self, norm_frame: Float, num_frames: Float) {
+        let frame = norm_frame * num_frames;
+        for osc in self.oscs.iter_mut() {
+            osc.set_frame(frame);
         }
     }
 

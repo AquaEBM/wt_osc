@@ -26,8 +26,8 @@ impl Oscillator {
 
     #[inline]
     unsafe fn get_frame_index(&self) -> UInt {
-        unsafe { self.frame.get_current().to_int_unchecked() }
-    } 
+        self.frame.get_current().to_int_unchecked()
+    }
 
     #[inline]
     pub fn update_phase_delta_smoother(&mut self) {
@@ -39,10 +39,10 @@ impl Oscillator {
         self.phase = Simd::splat(0);
     }
 
-    pub fn set_detune_semitones_smoothed(&mut self, semitones: Float, num_samples: usize) {
+    pub fn set_detune_semitones_smoothed(&mut self, semitones: Float, inc: Float) {
         let detune_ratio = semitones_to_ratio(semitones);
         self.phase_delta
-            .set_target(self.base_phase_delta * detune_ratio, num_samples);
+            .set_increment(self.base_phase_delta * detune_ratio, inc);
     }
 
     pub fn set_detune_semitones(&mut self, semitones: Float) {
@@ -50,8 +50,8 @@ impl Oscillator {
             .set_instantly(self.base_phase_delta * semitones_to_ratio(semitones));
     }
 
-    pub fn set_frame_smoothed(&mut self, frame: Float, num_samples: usize) {
-        self.frame.set_target(frame, num_samples);
+    pub fn set_frame_smoothed(&mut self, frame: Float, inc: Float) {
+        self.frame.set_increment(frame, inc);
     }
 
     pub fn set_frame(&mut self, frame: Float) {

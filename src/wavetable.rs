@@ -14,8 +14,13 @@ impl BandLimitedWaveTables {
         &self.data
     }
 
+    #[inline]
+    pub fn num_frames(&self) -> usize {
+        self.as_slice().len()
+    }
+
     pub fn with_frame_count(num_frames: usize) -> Arc<Self> {
-        // SAFETY: zero (0.0) is a valid float value
+        // SAFETY: both types have the same size/layout and zero (0.0) is a valid float value
         unsafe {
             mem::transmute::<Arc<[[[f32; Self::TABLE_SIZE]; Self::NUM_MIPMAPS]]>, Arc<Self>>(
                 Arc::new_zeroed_slice(num_frames).assume_init(),
@@ -24,7 +29,7 @@ impl BandLimitedWaveTables {
     }
 
     pub fn basic_shapes() -> Arc<Self> {
-        let mut wt = Self::with_frame_count(4);
+        let mut wt = Self::with_frame_count(WAVETABLES.len());
         let wt_mut = Arc::get_mut(&mut wt).unwrap();
         for (input, output) in wt_mut
             .as_mut_slice()

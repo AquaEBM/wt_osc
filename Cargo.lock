@@ -68,7 +68,7 @@ dependencies = [
 [[package]]
 name = "plugin_util"
 version = "0.1.0"
-source = "git+https://github.com/AquaEBM/plugin_util.git#a70f183a80cccfb2f480051c6f21770fb59a6557"
+source = "git+https://github.com/AquaEBM/plugin_util.git#1854bd6a60d4710ced7a2a975dd6dd582f38a85e"
 dependencies = [
  "cfg-if",
  "core_simd",
@@ -78,7 +78,7 @@ dependencies = [
 [[package]]
 name = "polygraph"
 version = "0.1.0"
-source = "git+https://github.com/AquaEBM/polygraph.git#645efabe7abc5551848e21bc3079078589606c27"
+source = "git+https://github.com/AquaEBM/polygraph.git#03d75d79491e8595e45c836d5d24f444c66c056b"
 dependencies = [
  "fnv",
  "plugin_util",

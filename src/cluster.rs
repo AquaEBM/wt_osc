@@ -4,7 +4,7 @@ use voice::WTOscVoice;
 #[derive(Default)]
 pub struct WTOscVoiceCluster {
     active_voices_mask: u64,
-    voices: [WTOscVoice; STEREO_VOICES_PER_VECTOR],
+    pub voices: [WTOscVoice; STEREO_VOICES_PER_VECTOR],
     normal_weights: LinearSmoother,
     flipped_weights: LinearSmoother,
 }
@@ -38,19 +38,18 @@ impl WTOscVoiceCluster {
         &mut self,
         param_values: &T,
         cluster_idx: usize,
-        num_samples: NonZeroUsize,
+        inc: Float,
     ) {
-        let n = num_samples.get();
 
         let (normal_weights, flipped_weights) = Self::get_sample_weights(param_values, cluster_idx);
 
-        self.normal_weights.set_target(normal_weights, n);
-        self.flipped_weights.set_target(flipped_weights, n);
+        self.normal_weights.set_increment(normal_weights, inc);
+        self.flipped_weights.set_increment(flipped_weights, inc);
 
         self.voices
             .iter_mut()
             .enumerate()
-            .for_each(|(i, voice)| voice.set_params_smoothed(param_values, cluster_idx, i, n));
+            .for_each(|(i, voice)| voice.set_params_smoothed(param_values, cluster_idx, i, inc));
     }
 
     #[inline]

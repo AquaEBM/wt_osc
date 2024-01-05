@@ -5,7 +5,7 @@ pub mod wavetable;
 extern crate alloc;
 
 pub use alloc::sync::Arc;
-use core::{cell::Cell, num::NonZeroUsize};
+use core::{cell::Cell, num::NonZeroUsize, mem};
 pub use plugin_util::{
     math::*,
     simd::{
@@ -40,13 +40,13 @@ pub trait WTOscParams {
 
     fn update_smoothers(&mut self, num_samples: NonZeroUsize);
 
-    fn tick_n(&mut self, num_samples: NonZeroUsize);
+    fn tick_n(&mut self, inc: Float);
 
     fn get_detune(&self, cluster_idx: usize) -> Float;
 
     fn get_transpose(&self, cluster_idx: usize) -> Float;
 
-    fn get_frame(&self, cluster_idx: usize) -> Float;
+    fn get_norm_frame(&self, cluster_idx: usize) -> Float;
 
     fn get_random(&self, cluster_idx: usize) -> Float;
 
@@ -67,29 +67,51 @@ pub struct WTOsc<T> {
     sr: f32,
     table: Arc<BandLimitedWaveTables>,
     clusters: Box<[WTOscVoiceCluster]>,
+    fnum_frames: Float,
 }
 
 impl<T: Default> Default for WTOsc<T> {
     fn default() -> Self {
+        Self::with_params(T::default())
+    }
+}
+
+impl<T> WTOsc<T> {
+    pub fn with_params(params: T) -> Self {
         Self {
-            params: Default::default(),
-            table_reciever: Default::default(),
+            params,
+            table_reciever: None,
             sr: 44100.,
             table: BandLimitedWaveTables::with_frame_count(0),
-            clusters: Default::default(),
+            fnum_frames: Simd::splat(0.),
+            clusters: Box::new([]),
         }
     }
 }
 
 impl<T: WTOscParams> WTOsc<T> {
-    pub fn with_params(params: T) -> Self {
-        Self {
-            params,
-            table_reciever: Default::default(),
-            sr: 44100.,
-            table: BandLimitedWaveTables::with_frame_count(0),
-            clusters: Default::default(),
+
+    pub fn replace_table(
+        &mut self,
+        new_table: Arc<BandLimitedWaveTables>,
+    ) -> Arc<BandLimitedWaveTables> {
+        self.fnum_frames = Simd::splat(new_table.num_frames() as f32);
+
+        for (i, cluster) in self.clusters.iter_mut().enumerate() {
+            let norm_frame = self.params.get_norm_frame(i);
+            for (_j, voice) in cluster.voices.iter_mut().enumerate() {
+                voice.set_frame_instantly(norm_frame, self.fnum_frames)
+            }
         }
+
+        mem::replace(&mut self.table, new_table)
+    }
+
+    pub fn set_table_reciever(
+        &mut self,
+        reciever: LenderReciever<BandLimitedWaveTables>,
+    ) -> Option<LenderReciever<BandLimitedWaveTables>> {
+        self.table_reciever.replace(reciever)
     }
 
     pub fn activate_voice(
@@ -126,15 +148,15 @@ impl<T: WTOscParams> WTOsc<T> {
         false
     }
 
-    pub fn update_smoothers(&mut self, num_samples: NonZeroUsize) {
+    pub fn update_smoothers(&mut self, inc: Float) {
         let param_values = &mut self.params;
 
-        param_values.tick_n(num_samples);
+        param_values.tick_n(inc);
 
         self.clusters
             .iter_mut()
             .enumerate()
-            .for_each(|(i, cluster)| cluster.set_params_smoothed(param_values, i, num_samples))
+            .for_each(|(i, cluster)| cluster.set_params_smoothed(param_values, i, inc))
     }
 
     pub fn reset(&mut self) {
@@ -154,7 +176,7 @@ impl<T: WTOscParams> WTOsc<T> {
 
         if let Some(reciever) = self.table_reciever.as_mut() {
             if let Some(table) = reciever.recv_latest() {
-                self.table = table;
+                self.replace_table(table);
             }
         }
     }
