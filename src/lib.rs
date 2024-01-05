@@ -5,7 +5,7 @@ pub mod wavetable;
 extern crate alloc;
 
 pub use alloc::sync::Arc;
-use core::{cell::Cell, num::NonZeroUsize, mem};
+use core::{num::NonZeroUsize, mem, iter};
 pub use plugin_util::{
     math::*,
     simd::{
@@ -21,7 +21,7 @@ use polygraph::{
     stereo_util::{
         as_mut_stereo_sample_array, splat_slot, swap_stereo, triangular_pan_weights,
         STEREO_VOICES_PER_VECTOR,
-    },
+    }, processor::Processor,
 };
 pub use std::path::Path;
 use wavetable::BandLimitedWaveTables;
@@ -87,6 +87,13 @@ impl<T> WTOsc<T> {
             clusters: Box::new([]),
         }
     }
+
+    pub fn set_table_reciever(
+        &mut self,
+        reciever: LenderReciever<BandLimitedWaveTables>,
+    ) -> Option<LenderReciever<BandLimitedWaveTables>> {
+        self.table_reciever.replace(reciever)
+    }
 }
 
 impl<T: WTOscParams> WTOsc<T> {
@@ -107,70 +114,6 @@ impl<T: WTOscParams> WTOsc<T> {
         mem::replace(&mut self.table, new_table)
     }
 
-    pub fn set_table_reciever(
-        &mut self,
-        reciever: LenderReciever<BandLimitedWaveTables>,
-    ) -> Option<LenderReciever<BandLimitedWaveTables>> {
-        self.table_reciever.replace(reciever)
-    }
-
-    pub fn activate_voice(
-        &mut self,
-        cluster_idx: usize,
-        voice_idx: usize,
-        note: u8,
-    ) -> Option<bool> {
-        self.clusters.get_mut(cluster_idx).map(|cluster| {
-            cluster.activate_voice(&self.params, cluster_idx, voice_idx, note, self.sr)
-        })
-    }
-
-    pub fn deactivate_voice(&mut self, cluster_idx: usize, voice_idx: usize) -> Option<bool> {
-        self.clusters
-            .get_mut(cluster_idx)
-            .map(|cluster| cluster.deactivate_voice(voice_idx))
-    }
-
-    pub fn activate_cluster(&mut self, index: usize) -> bool {
-        if let Some(cluster) = self.clusters.get_mut(index) {
-            cluster.activate(&self.params, index);
-            return true;
-        }
-
-        false
-    }
-
-    pub fn deactivate_cluster(&mut self, index: usize) -> bool {
-        if let Some(cluster) = self.clusters.get_mut(index) {
-            cluster.deactivate();
-            return true;
-        }
-        false
-    }
-
-    pub fn update_smoothers(&mut self, inc: Float) {
-        let param_values = &mut self.params;
-
-        param_values.tick_n(inc);
-
-        self.clusters
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, cluster)| cluster.set_params_smoothed(param_values, i, inc))
-    }
-
-    pub fn reset(&mut self) {
-        self.clusters.iter_mut().for_each(WTOscVoiceCluster::reset);
-    }
-
-    pub fn load_wavetable_non_realtime(&mut self, path: impl AsRef<Path>) {
-        self.table = BandLimitedWaveTables::from_file(path);
-    }
-
-    pub fn initialize(&mut self, sr: f32, max_buffer_size: usize) {
-        self.params.initialize(sr, max_buffer_size);
-    }
-
     pub fn update_param_smoothers(&mut self, num_samples: NonZeroUsize) {
         self.params.update_smoothers(num_samples);
 
@@ -181,35 +124,63 @@ impl<T: WTOscParams> WTOsc<T> {
         }
     }
 
-    pub fn process_buffer(
-        &mut self,
-        mut active_cluster_idxs: impl Iterator<Item = usize>,
-        buffer: &[Cell<Float>],
-    ) -> bool {
-        let table = self.table.as_ref();
-
-        if let Some(i) = active_cluster_idxs.next() {
-            let cluster = unsafe { self.clusters.get_unchecked_mut(i) };
-
-            for sample in buffer {
-                sample.set(cluster.process(table));
-            }
-        } else {
-            return false;
-        }
-
-        for i in active_cluster_idxs {
-            let cluster = unsafe { self.clusters.get_unchecked_mut(i) };
-
-            for sample in buffer {
-                sample.set(sample.get() + cluster.process(table));
-            }
-        }
-
-        true
-    }
-
     pub fn params(&self) -> &T {
         &self.params
+    }   
+}
+
+impl<T: WTOscParams> Processor<FLOATS_PER_VECTOR> for WTOsc<T> {
+
+    fn process(
+        &mut self,
+        buffers: polygraph::Buffers<Simd<f32, FLOATS_PER_VECTOR>>,
+        cluster_idx: usize,
+        params_changed: Option<NonZeroUsize>,
+    ) {
+        if let Some(num_samples) = params_changed {
+            self.update_param_smoothers(num_samples);
+        }
+
+        if let Some(output_buf) = buffers.get_output(0) {
+
+            let table = self.table.as_ref();
+            let cluster = &mut self.clusters[cluster_idx];
+
+            let inc = Simd::splat(1. / output_buf.len() as f32);
+
+            cluster.set_params_smoothed(&self.params, cluster_idx, inc);
+
+            for sample in output_buf.iter() {
+                sample.set(cluster.process(table));
+            }
+        }
+    }
+
+    fn initialize(&mut self, sr: f32, max_buffer_size: usize) {
+        self.params.initialize(sr, max_buffer_size);
+    }
+
+    fn reset(&mut self) {
+        self.clusters.iter_mut().for_each(WTOscVoiceCluster::reset)
+    }
+
+    fn set_max_polyphony(&mut self, num_clusters: usize) {
+        self.clusters = iter::repeat_with(Default::default).take(num_clusters).collect()
+    }
+
+    fn activate_cluster(&mut self, index: usize) {
+        self.clusters[index].activate(&self.params, index);
+    }
+
+    fn deactivate_cluster(&mut self, index: usize) {
+        self.clusters[index].deactivate()
+    }
+
+    fn activate_voice(&mut self, cluster_idx: usize, voice_idx: usize, note: u8) {
+        self.clusters[cluster_idx].activate_voice(&self.params, cluster_idx, voice_idx, note, self.sr);
+    }
+
+    fn deactivate_voice(&mut self, cluster_idx: usize, voice_idx: usize) {
+        self.clusters[cluster_idx].deactivate_voice(voice_idx);
     }
 }
