@@ -11,3 +11,4 @@ polygraph = { git = "https://github.com/AquaEBM/polygraph.git" }
 plugin_util = { git = "https://github.com/AquaEBM/plugin_util.git", features = ["non_std_simd"] }
 realfft = "3.2"
 hound = "3.5"
+cell-project = "0.1.4"

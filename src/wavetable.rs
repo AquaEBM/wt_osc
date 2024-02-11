@@ -8,6 +8,12 @@ pub struct BandLimitedWaveTables {
     data: [[[f32; Self::TABLE_SIZE]; Self::NUM_MIPMAPS]],
 }
 
+impl Default for Box<BandLimitedWaveTables> {
+    fn default() -> Self {
+        BandLimitedWaveTables::with_frame_count_owned(0)
+    }
+}
+
 impl BandLimitedWaveTables {
     #[inline]
     pub fn as_slice(&self) -> &[[[f32; Self::TABLE_SIZE]; Self::NUM_MIPMAPS]] {
@@ -24,6 +30,15 @@ impl BandLimitedWaveTables {
         unsafe {
             mem::transmute::<Arc<[[[f32; Self::TABLE_SIZE]; Self::NUM_MIPMAPS]]>, Arc<Self>>(
                 Arc::new_zeroed_slice(num_frames).assume_init(),
+            )
+        }
+    }
+
+    pub fn with_frame_count_owned(num_frames: usize) -> Box<Self> {
+        // SAFETY: both types have the same size/layout and zero (0.0) is a valid float value
+        unsafe {
+            mem::transmute::<Box<[[[f32; Self::TABLE_SIZE]; Self::NUM_MIPMAPS]]>, Box<Self>>(
+                Box::new_zeroed_slice(num_frames).assume_init(),
             )
         }
     }
