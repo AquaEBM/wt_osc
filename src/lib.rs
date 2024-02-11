@@ -8,19 +8,11 @@ use alloc::sync::Arc;
 use core::{array, cell::Cell, iter, num::NonZeroUsize};
 use plugin_util::{
     math::*,
-    simd::{
-        prelude::*,
-        Simd,
-        StdFloat,
-        SimdElement
-    },
+    simd::{prelude::*, Simd, SimdElement, StdFloat},
     simd_util::*,
     smoothing::*,
 };
-use polygraph::{
-    buffer::Buffers,
-    processor::Processor,
-};
+use polygraph::{buffer::Buffers, processor::Processor};
 
 use std::path::Path;
 use wavetable::BandLimitedWaveTables;
@@ -49,21 +41,14 @@ pub struct WTOsc {
 }
 
 impl Processor<FLOATS_PER_VECTOR> for WTOsc {
-
     fn audio_io_layout(&self) -> (usize, usize) {
         (0, 1)
     }
 
-    fn process(
-        &mut self,
-        buffers: Buffers<Simd<f32, FLOATS_PER_VECTOR>>,
-        cluster_idx: usize,
-    ) {
+    fn process(&mut self, buffers: Buffers<Simd<f32, FLOATS_PER_VECTOR>>, cluster_idx: usize) {
         if let Some(output_buf) = buffers.get_output(0) {
-
             let table = self.global_state.table.as_ref();
             if table.num_frames() != 0 {
-
                 let cluster = &mut self.clusters[cluster_idx];
 
                 cluster.set_params_smoothed(&self.global_state, buffers.buffer_size());
@@ -77,7 +62,9 @@ impl Processor<FLOATS_PER_VECTOR> for WTOsc {
 
     fn initialize(&mut self, sr: f32, _max_buffer_size: usize, max_num_clusters: usize) {
         self.global_state.sr = sr;
-        self.clusters = iter::repeat_with(Default::default).take(max_num_clusters).collect()
+        self.clusters = iter::repeat_with(Default::default)
+            .take(max_num_clusters)
+            .collect()
     }
 
     fn reset(&mut self) {
@@ -93,12 +80,17 @@ impl Processor<FLOATS_PER_VECTOR> for WTOsc {
     }
 
     fn move_state(
-        &mut self, 
+        &mut self,
         (from_cluster, from_voice): (usize, usize),
         (to_cluster, to_voice): (usize, usize),
     ) {
         let clusters = Cell::from_mut(self.clusters.as_mut()).as_slice_of_cells();
 
-        WTOscVoiceCluster::move_state(&clusters[from_cluster], from_voice, &clusters[to_cluster], to_voice);
+        WTOscVoiceCluster::move_state(
+            &clusters[from_cluster],
+            from_voice,
+            &clusters[to_cluster],
+            to_voice,
+        );
     }
 }

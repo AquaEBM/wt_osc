@@ -88,12 +88,12 @@ impl BandLimitedWaveTables {
 
         let fract = fxp_to_flp(phase << Self::V_NUM_OCTAVES);
 
-        let table_start = octaves + frame * Self::V_NUM_MIPMAPS << Self::V_NUM_OCTAVES;
+        let table_start = (octaves + frame * Self::V_NUM_MIPMAPS) << Self::V_NUM_OCTAVES;
 
         const ONE: UInt = const_splat(1);
 
         let phase_a = phase >> Self::FRACT_BITS;
-        let phase_b = phase_a + ONE & Self::PHASE_MASK;
+        let phase_b = (phase_a + ONE) & Self::PHASE_MASK;
 
         (fract, table_start + phase_a, table_start + phase_b)
     }
@@ -154,8 +154,7 @@ impl BandLimitedWaveTables {
         for (output, input) in table_mut
             .as_mut_slice()
             .iter_mut()
-            .map(|mipmaps| mipmaps.last_mut().unwrap())
-            .flatten()
+            .flat_map(|mipmaps| mipmaps.last_mut().unwrap())
             .zip(reader.into_samples().map(Result::unwrap))
         {
             *output = input;

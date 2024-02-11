@@ -1,6 +1,6 @@
 use super::*;
-use voice::{WTOscVoice, VoiceParams};
 use cell_project::cell_project as p;
+use voice::{VoiceParams, WTOscVoice};
 
 fn set_sample<T: SimdElement>(
     input: &Cell<Simd<T, FLOATS_PER_VECTOR>>,
@@ -37,12 +37,7 @@ impl WTOscClusterParams {
         self.pan.tick_increments(incs);
     }
 
-    fn move_state(
-        this: &Cell<Self>,
-        from: usize,
-        other: &Cell<Self>,
-        to: usize
-    ) {
+    fn move_state(this: &Cell<Self>, from: usize, other: &Cell<Self>, to: usize) {
         for (input, output) in [
             (p!(Self, this.detune), p!(Self, other.detune)),
             (p!(Self, this.transpose), p!(Self, other.transpose)),
@@ -52,28 +47,59 @@ impl WTOscClusterParams {
             (p!(Self, this.stereo), p!(Self, other.stereo)),
             (p!(Self, this.pan), p!(Self, other.pan)),
         ] {
-            set_sample(p!(LinearSmoother, input.value), from, p!(LinearSmoother, output.value), to);
-            set_sample(p!(LinearSmoother, input.increment), from, p!(LinearSmoother, output.increment), to);
+            set_sample(
+                p!(LinearSmoother, input.value),
+                from,
+                p!(LinearSmoother, output.value),
+                to,
+            );
+            set_sample(
+                p!(LinearSmoother, input.increment),
+                from,
+                p!(LinearSmoother, output.increment),
+                to,
+            );
         }
 
-        set_sample(p!(Self, this.base_phase_delta), from, p!(Self, other.base_phase_delta), to);
-        set_sample(p!(Self, this.num_unison_voices), from, p!(Self, other.num_unison_voices), to);
+        set_sample(
+            p!(Self, this.base_phase_delta),
+            from,
+            p!(Self, other.base_phase_delta),
+            to,
+        );
+        set_sample(
+            p!(Self, this.num_unison_voices),
+            from,
+            p!(Self, other.num_unison_voices),
+            to,
+        );
     }
 
-    pub fn detune(&self) -> &Float { self.detune.get_current() }
-    pub fn transpose(&self) -> &Float { self.transpose.get_current() }
-    pub fn frame(&self) -> &Float { self.frame.get_current() }
-    pub fn random(&self) -> &Float { self.random.get_current() }
-    pub fn num_unison_voices(&self) -> &UInt { &self.num_unison_voices }
-    pub fn base_phase_delta(&self) -> &Float { &self.base_phase_delta }
+    pub fn detune(&self) -> &Float {
+        self.detune.get_current()
+    }
+    pub fn transpose(&self) -> &Float {
+        self.transpose.get_current()
+    }
+    pub fn frame(&self) -> &Float {
+        self.frame.get_current()
+    }
+    pub fn random(&self) -> &Float {
+        self.random.get_current()
+    }
+    pub fn num_unison_voices(&self) -> &UInt {
+        &self.num_unison_voices
+    }
+    pub fn base_phase_delta(&self) -> &Float {
+        &self.base_phase_delta
+    }
 
     fn get_sample_weights(&self) -> (Float, Float) {
-        
         let level = *self.level.get_current();
-        
+
         let stereo = *self.stereo.get_current();
         let pan = *self.pan.get_current();
-        
+
         let unison_normalisation = self.num_unison_voices().cast().recip();
         let pan_weights = triangular_pan_weights(pan) * unison_normalisation;
 
@@ -93,13 +119,7 @@ pub struct WTOscVoiceCluster {
 }
 
 impl WTOscVoiceCluster {
-
-    pub fn move_state(
-        this: &Cell<Self>,
-        from: usize,
-        other: &Cell<Self>,
-        to: usize
-    ) {
+    pub fn move_state(this: &Cell<Self>, from: usize, other: &Cell<Self>, to: usize) {
         assert!(from < STEREO_VOICES_PER_VECTOR);
         assert!(to < STEREO_VOICES_PER_VECTOR);
 
@@ -110,10 +130,30 @@ impl WTOscVoiceCluster {
         let o_nw_smoother = p!(Self, other.normal_weights);
         let o_fw_smoother = p!(Self, other.flipped_weights);
 
-        set_sample(p!(LinearSmoother, s_nw_smoother.value), from, p!(LinearSmoother, o_nw_smoother.value), to);
-        set_sample(p!(LinearSmoother, s_nw_smoother.increment), from, p!(LinearSmoother, o_nw_smoother.increment), to);
-        set_sample(p!(LinearSmoother, s_fw_smoother.value), from, p!(LinearSmoother, o_fw_smoother.value), to);
-        set_sample(p!(LinearSmoother, s_fw_smoother.increment), from, p!(LinearSmoother, o_fw_smoother.increment), to);
+        set_sample(
+            p!(LinearSmoother, s_nw_smoother.value),
+            from,
+            p!(LinearSmoother, o_nw_smoother.value),
+            to,
+        );
+        set_sample(
+            p!(LinearSmoother, s_nw_smoother.increment),
+            from,
+            p!(LinearSmoother, o_nw_smoother.increment),
+            to,
+        );
+        set_sample(
+            p!(LinearSmoother, s_fw_smoother.value),
+            from,
+            p!(LinearSmoother, o_fw_smoother.value),
+            to,
+        );
+        set_sample(
+            p!(LinearSmoother, s_fw_smoother.increment),
+            from,
+            p!(LinearSmoother, o_fw_smoother.increment),
+            to,
+        );
 
         let this_voices = p!(Self, this.voices).as_array_of_cells();
         let other_voices = p!(Self, other.voices).as_array_of_cells();
@@ -122,7 +162,6 @@ impl WTOscVoiceCluster {
     }
 
     pub fn set_gains_instantly(&mut self) {
-
         let params = &self.params;
 
         let (normal_weights, flipped_weights) = params.get_sample_weights();
@@ -134,7 +173,7 @@ impl WTOscVoiceCluster {
     pub fn set_params_smoothed(
         &mut self,
         global_state: &WTOscGlobalState,
-        num_samples: NonZeroUsize
+        num_samples: NonZeroUsize,
     ) {
         let inc = Simd::splat(1. / num_samples.get() as f32);
 
@@ -151,7 +190,9 @@ impl WTOscVoiceCluster {
             .iter_mut()
             .enumerate()
             .filter_map(|(i, maybe_voice)| maybe_voice.as_mut().map(|voice| (i, voice)))
-            .for_each(|(i, voice)| voice.set_params_smoothed(VoiceParams::new(params, global_state, i).unwrap(), inc));
+            .for_each(|(i, voice)| {
+                voice.set_params_smoothed(VoiceParams::new(params, global_state, i).unwrap(), inc)
+            });
     }
 
     #[inline]
@@ -176,7 +217,10 @@ impl WTOscVoiceCluster {
     }
 
     pub fn reset(&mut self) {
-        self.voices.iter_mut().filter_map(Option::as_mut).for_each(WTOscVoice::reset)
+        self.voices
+            .iter_mut()
+            .filter_map(Option::as_mut)
+            .for_each(WTOscVoice::reset)
     }
 
     pub fn activate_voice(
@@ -185,7 +229,6 @@ impl WTOscVoiceCluster {
         global_state: &WTOscGlobalState,
         note: u8,
     ) -> bool {
-
         let phase_deltas = split_stereo_mut(&mut self.params.base_phase_delta);
 
         phase_deltas[voice_idx] = Simd::splat(440. * f32::exp2((note as i8 - 69) as f32 / 12.));
@@ -203,11 +246,8 @@ impl WTOscVoiceCluster {
     }
 
     pub fn deactivate_voice(&mut self, index: usize) -> bool {
-
         if let Some(maybe_voice) = self.voices.get_mut(index) {
-
             return if let Some(voice) = maybe_voice {
-
                 voice.deactivate();
                 *maybe_voice = None;
 
@@ -217,7 +257,7 @@ impl WTOscVoiceCluster {
                 true
             } else {
                 false
-            }
+            };
         }
 
         false

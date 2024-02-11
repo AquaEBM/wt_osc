@@ -10,10 +10,7 @@ pub struct OscillatorParams<'a> {
 
 impl<'a> OscillatorParams<'a> {
     pub fn new(index: usize, params: &'a VoiceParams<'a>) -> Self {
-        Self {
-            index,
-            params,
-        }
+        Self { index, params }
     }
 
     fn starting_phases(&self) -> UInt {
@@ -23,7 +20,6 @@ impl<'a> OscillatorParams<'a> {
     }
 
     fn get_params(&self) -> (Float, Float, TMask) {
-
         let half_f = Float::splat(0.5);
         let one_u = UInt::splat(1);
         let half_max_voices = UInt::splat((MAX_UNISON >> 1) as u32 - 1);
@@ -37,12 +33,16 @@ impl<'a> OscillatorParams<'a> {
 
         let half_num_unison_voices_f = num_unison_voices.cast() * half_f;
         let detunes = half_max_voices - half_voice_indices;
-        let abs_norm_detunes = (half_num_unison_voices_f - detunes.cast()) / half_num_unison_voices_f;
+        let abs_norm_detunes =
+            (half_num_unison_voices_f - detunes.cast()) / half_num_unison_voices_f;
         let sign_mask = (voice_indices ^ half_voice_indices) << max_float_bit_index;
         let norm_detunes = Float::from_bits(abs_norm_detunes.to_bits() ^ sign_mask);
 
         let base_phase_delta = self.params.base_phase_delta() * self.unison_stack_mult();
-        let detune_semitones = self.params.detune().mul_add(norm_detunes, *self.params.transpose());
+        let detune_semitones = self
+            .params
+            .detune()
+            .mul_add(norm_detunes, *self.params.transpose());
         let detune_ratio = semitones_to_ratio(detune_semitones);
         let phase_delta = base_phase_delta * detune_ratio;
 
@@ -68,7 +68,6 @@ pub struct Oscillator {
 }
 
 impl Oscillator {
-
     #[inline]
     fn set_phase(&mut self, phase: UInt) {
         self.phase = phase;
