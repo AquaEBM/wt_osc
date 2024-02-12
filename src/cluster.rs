@@ -21,7 +21,7 @@ pub struct WTOscClusterParams {
     random: LinearSmoother,
     level: LinearSmoother,
     stereo: LinearSmoother,
-    pan: LinearSmoother,
+    norm_pan: LinearSmoother,
     base_phase_delta: Float,
     num_unison_voices: UInt,
 }
@@ -34,7 +34,7 @@ impl WTOscClusterParams {
         self.random.tick_increments(incs);
         self.level.tick_increments(incs);
         self.stereo.tick_increments(incs);
-        self.pan.tick_increments(incs);
+        self.norm_pan.tick_increments(incs);
     }
 
     fn move_state(this: &Cell<Self>, from: usize, other: &Cell<Self>, to: usize) {
@@ -45,7 +45,7 @@ impl WTOscClusterParams {
             (p!(Self, this.random), p!(Self, other.random)),
             (p!(Self, this.level), p!(Self, other.level)),
             (p!(Self, this.stereo), p!(Self, other.stereo)),
-            (p!(Self, this.pan), p!(Self, other.pan)),
+            (p!(Self, this.norm_pan), p!(Self, other.norm_pan)),
         ] {
             set_sample(
                 p!(LinearSmoother, input.value),
@@ -98,7 +98,7 @@ impl WTOscClusterParams {
         let level = *self.level.get_current();
 
         let stereo = *self.stereo.get_current();
-        let pan = *self.pan.get_current();
+        let pan = *self.norm_pan.get_current();
 
         let unison_normalisation = self.num_unison_voices().cast().recip();
         let pan_weights = triangular_pan_weights(pan) * unison_normalisation;
