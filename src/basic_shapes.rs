@@ -1,6 +1,6 @@
 use crate::wavetable::BandLimitedWaveTables;
 
-pub static WAVETABLES: [[f32; BandLimitedWaveTables::TABLE_SIZE]; 4] = [
+pub static WAVETABLES: [[f32; BandLimitedWaveTables::FRAME_LEN]; 4] = [
     [
         0.0,
         0.003_067_956_8,

@@ -1,8 +1,13 @@
-#![feature(portable_simd, new_uninit, const_float_bits_conv, as_array_of_cells)]
+#![feature(portable_simd, new_uninit, as_array_of_cells)]
+
+extern crate alloc;
+
+mod cluster;
+mod oscillator;
+mod voice;
 
 mod basic_shapes;
 pub mod wavetable;
-extern crate alloc;
 
 use alloc::sync::Arc;
 use core::{array, cell::Cell, iter, num::NonZeroUsize};
@@ -14,14 +19,9 @@ use plugin_util::{
 };
 use polygraph::{buffer::Buffers, processor::Processor};
 
-use std::path::Path;
 use wavetable::BandLimitedWaveTables;
 
-mod cluster;
 use cluster::WTOscVoiceCluster;
-
-mod oscillator;
-mod voice;
 
 pub const MAX_UNISON: usize = 16;
 pub const NUM_VOICE_OSCILLATORS: usize = enclosing_div(MAX_UNISON, FLOATS_PER_VECTOR);

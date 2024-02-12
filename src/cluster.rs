@@ -17,7 +17,7 @@ fn set_sample<T: SimdElement>(
 pub struct WTOscClusterParams {
     detune: LinearSmoother,
     transpose: LinearSmoother,
-    frame: LinearSmoother,
+    norm_frame: LinearSmoother,
     random: LinearSmoother,
     level: LinearSmoother,
     stereo: LinearSmoother,
@@ -41,7 +41,7 @@ impl WTOscClusterParams {
         for (input, output) in [
             (p!(Self, this.detune), p!(Self, other.detune)),
             (p!(Self, this.transpose), p!(Self, other.transpose)),
-            (p!(Self, this.frame), p!(Self, other.frame)),
+            (p!(Self, this.norm_frame), p!(Self, other.norm_frame)),
             (p!(Self, this.random), p!(Self, other.random)),
             (p!(Self, this.level), p!(Self, other.level)),
             (p!(Self, this.stereo), p!(Self, other.stereo)),
@@ -82,7 +82,7 @@ impl WTOscClusterParams {
         self.transpose.get_current()
     }
     pub fn frame(&self) -> &Float {
-        self.frame.get_current()
+        self.norm_frame.get_current()
     }
     pub fn random(&self) -> &Float {
         self.random.get_current()
