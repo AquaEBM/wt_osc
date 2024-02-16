@@ -1,8 +1,8 @@
 use crate::{basic_shapes::WAVETABLES, *};
 use core::mem;
-use std::io;
 use hound::{SampleFormat, WavReader};
 use realfft::{num_complex::Complex32, RealFftPlanner};
+use std::io;
 
 #[repr(transparent)]
 pub struct BandLimitedWaveTables {
@@ -58,8 +58,7 @@ impl BandLimitedWaveTables {
         self.write_table(WAVETABLES.as_slice());
     }
 
-    pub fn write_table(&mut self, frames: &[[f32 ; Self::FRAME_LEN]]) {
-
+    pub fn write_table(&mut self, frames: &[[f32; Self::FRAME_LEN]]) {
         let this = self.as_mut_slice();
         assert_eq!(this.len(), frames.len());
 

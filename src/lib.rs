@@ -11,13 +11,16 @@ pub mod wavetable;
 
 use alloc::sync::Arc;
 use core::{array, cell::Cell, iter, num::NonZeroUsize};
-use plugin_util::{
-    math::*,
-    simd::{prelude::*, Simd, SimdElement, StdFloat},
-    simd_util::*,
-    smoothing::*,
+use polygraph::{
+    buffer::Buffers,
+    processor::Processor,
+    simd_util::{
+        math::*,
+        simd::{prelude::*, Simd, SimdElement, StdFloat},
+        smoothing::*,
+        *,
+    },
 };
-use polygraph::{buffer::Buffers, processor::Processor};
 
 use wavetable::BandLimitedWaveTables;
 
@@ -45,7 +48,7 @@ impl Processor<FLOATS_PER_VECTOR> for WTOsc {
         (0, 1)
     }
 
-    fn process(&mut self, buffers: Buffers<Simd<f32, FLOATS_PER_VECTOR>>, cluster_idx: usize) {
+    fn process(&mut self, buffers: Buffers<Float>, cluster_idx: usize) {
         if let Some(output_buf) = buffers.get_output(0) {
             let table = self.global_state.table.as_ref();
             if table.num_frames() != 0 {
@@ -92,5 +95,14 @@ impl Processor<FLOATS_PER_VECTOR> for WTOsc {
             &clusters[to_cluster],
             to_voice,
         );
+    }
+
+    fn set_param_smoothed(&mut self, cluster_idx: usize, param_id: u64, norm_val: Float) {
+        const DT: Float = const_splat(1. / 1000.);
+        self.clusters[cluster_idx].params.set_param_smoothed(param_id, norm_val, DT);
+    }
+
+    fn set_param(&mut self, cluster_idx: usize, param_id: u64, norm_val: Float) {
+        self.clusters[cluster_idx].params.set_param(param_id, norm_val);
     }
 }

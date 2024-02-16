@@ -3,13 +3,13 @@ use cluster::WTOscClusterParams;
 use oscillator::{Oscillator, OscillatorParams};
 
 pub struct VoiceParams<'a> {
-    global_state: &'a WTOscGlobalState,
-    frame: Float,
-    transpose: Float,
-    random: Float,
-    detune: Float,
-    num_voices: UInt,
-    phase_delta: Float,
+    pub global_state: &'a WTOscGlobalState,
+    pub base_norm_frame: Float,
+    pub transpose: Float,
+    pub random: Float,
+    pub detune: Float,
+    pub num_voices: UInt,
+    pub phase_delta: Float,
 }
 
 impl<'a> VoiceParams<'a> {
@@ -31,45 +31,27 @@ impl<'a> VoiceParams<'a> {
     ) -> Self {
         Self {
             global_state,
-            frame: splat_stereo(*split_stereo(params.frame()).get_unchecked(i)),
+            base_norm_frame: splat_stereo(*split_stereo(params.norm_frame()).get_unchecked(i)),
             transpose: splat_stereo(*split_stereo(params.transpose()).get_unchecked(i)),
             random: splat_stereo(*split_stereo(params.random()).get_unchecked(i)),
             detune: splat_stereo(*split_stereo(params.detune()).get_unchecked(i)),
-            num_voices: splat_stereo(*split_stereo(params.num_unison_voices()).get_unchecked(i)),
-            phase_delta: splat_stereo(*split_stereo(params.base_phase_delta()).get_unchecked(i)),
+            num_voices: splat_stereo(*split_stereo(&params.num_voices).get_unchecked(i)),
+            phase_delta: splat_stereo(*split_stereo(&params.phase_delta).get_unchecked(i)),
         }
     }
 
     pub fn num_oscillators(&self) -> NonZeroUsize {
+        fn enclosing_div2(n: Simd<u32, 2>, d: Simd<u32, 2>) -> Simd<u32, 2> {
+            (n + d - Simd::splat(1)) / d
+        }
+
         unsafe {
-            let n = split_stereo(self.num_unison_voices_raw()).get_unchecked(0);
-            let [l, r] = (n / Simd::splat(FLOATS_PER_VECTOR as u32)).to_array();
+            // SAFETY: FLOATS_PER_VECTOR is garanteed to be a non-zero multiple of 2
+            let n = split_stereo(&self.num_voices).get_unchecked(0);
+            let [l, r] = enclosing_div2(*n, Simd::splat(FLOATS_PER_VECTOR as u32)).to_array();
             // SAFETY: l and r are guaranteed to be non-zero
             NonZeroUsize::new_unchecked(l.max(r) as usize)
         }
-    }
-
-    pub fn num_unison_voices_raw(&self) -> &UInt {
-        &self.num_voices
-    }
-
-    pub fn detune(&self) -> &Float {
-        &self.detune
-    }
-    pub fn transpose(&self) -> &Float {
-        &self.transpose
-    }
-    pub fn frame(&self) -> &Float {
-        &self.frame
-    }
-    pub fn random(&self) -> &Float {
-        &self.random
-    }
-    pub fn starting_phases(&'a self) -> &'a [Float; NUM_VOICE_OSCILLATORS] {
-        &self.global_state.starting_phases
-    }
-    pub fn base_phase_delta(&'a self) -> &'a Float {
-        &self.phase_delta
     }
 }
 
