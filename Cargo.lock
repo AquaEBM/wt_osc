@@ -29,7 +29,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "core_simd"
 version = "0.1.0"
-source = "git+https://github.com/rust-lang/portable-simd.git#b2e1bcba2c9febb16561420392be2ca483fcad7f"
+source = "git+https://github.com/rust-lang/portable-simd.git#fbc9efa364db3cc17fa8c395dff06a3d704dad9c"
 
 [[package]]
 name = "fnv"
@@ -73,7 +73,7 @@ dependencies = [
 [[package]]
 name = "polygraph"
 version = "0.1.0"
-source = "git+https://github.com/AquaEBM/polygraph.git#bbe0919ff30124f000d4d23a3f9b3ebf56ada0f6"
+source = "git+https://github.com/AquaEBM/polygraph.git#28cad5862fce856b596c0d165fcf96d816903ccb"
 dependencies = [
  "fnv",
  "rtrb",
@@ -125,7 +125,7 @@ dependencies = [
 [[package]]
 name = "simd_util"
 version = "0.1.0"
-source = "git+https://github.com/AquaEBM/simd_util.git#d598d1fb34105076d34028ec7b0c8eed69646e4f"
+source = "git+https://github.com/AquaEBM/simd_util.git#40d6c214f00916f7612ddf29d38855bc38914097"
 dependencies = [
  "cfg-if",
  "core_simd",
@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "std_float"
 version = "0.1.0"
-source = "git+https://github.com/rust-lang/portable-simd.git#b2e1bcba2c9febb16561420392be2ca483fcad7f"
+source = "git+https://github.com/rust-lang/portable-simd.git#fbc9efa364db3cc17fa8c395dff06a3d704dad9c"
 dependencies = [
  "core_simd",
 ]
@@ -148,9 +148,9 @@ checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
 
 [[package]]
 name = "transpose"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6522d49d03727ffb138ae4cbc1283d3774f0d10aa7f9bf52e6784c45daf9b23"
+checksum = "1ad61aed86bc3faea4300c7aee358b4c6d0c8d6ccc36524c96e4c92ccf26e77e"
 dependencies = [
  "num-integer",
  "strength_reduce",

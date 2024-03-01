@@ -1,129 +1,198 @@
 use super::*;
-use cluster::WTOscClusterParams;
-use oscillator::{Oscillator, OscillatorParams};
 
-pub struct VoiceParams<'a> {
-    pub global_state: &'a WTOscGlobalState,
+pub struct VoiceParams {
     pub base_norm_frame: Float,
     pub transpose: Float,
-    pub random: Float,
     pub detune: Float,
     pub num_voices: UInt,
-    pub phase_delta: Float,
+    pub base_phase_delta: Float,
 }
 
-impl<'a> VoiceParams<'a> {
-    pub fn new(
-        params: &WTOscClusterParams,
-        global_state: &'a WTOscGlobalState,
-        i: usize,
-    ) -> Option<Self> {
-        // SAFETY: i has just been bounds checked
-        unsafe {
-            (i < STEREO_VOICES_PER_VECTOR).then(|| Self::new_unchecked(params, global_state, i))
-        }
-    }
-
-    pub unsafe fn new_unchecked(
-        params: &WTOscClusterParams,
-        global_state: &'a WTOscGlobalState,
-        i: usize,
-    ) -> Self {
-        Self {
-            global_state,
-            base_norm_frame: splat_stereo(*split_stereo(params.norm_frame()).get_unchecked(i)),
-            transpose: splat_stereo(*split_stereo(params.transpose()).get_unchecked(i)),
-            random: splat_stereo(*split_stereo(params.random()).get_unchecked(i)),
-            detune: splat_stereo(*split_stereo(params.detune()).get_unchecked(i)),
-            num_voices: splat_stereo(*split_stereo(&params.num_voices).get_unchecked(i)),
-            phase_delta: splat_stereo(*split_stereo(&params.phase_delta).get_unchecked(i)),
-        }
-    }
-
-    pub fn num_oscillators(&self) -> NonZeroUsize {
-        fn enclosing_div2(n: Simd<u32, 2>, d: Simd<u32, 2>) -> Simd<u32, 2> {
-            (n + d - Simd::splat(1)) / d
-        }
-
-        unsafe {
-            // SAFETY: FLOATS_PER_VECTOR is garanteed to be a non-zero multiple of 2
-            let n = split_stereo(&self.num_voices).get_unchecked(0);
-            let [l, r] = enclosing_div2(*n, Simd::splat(FLOATS_PER_VECTOR as u32)).to_array();
-            // SAFETY: l and r are guaranteed to be non-zero
-            NonZeroUsize::new_unchecked(l.max(r) as usize)
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct WTOscVoice {
-    num_oscs: NonZeroUsize,
-    oscs: [Oscillator; NUM_VOICE_OSCILLATORS],
-}
-
-impl Default for WTOscVoice {
-    fn default() -> Self {
-        Self {
-            oscs: Default::default(),
-            num_oscs: NonZeroUsize::MIN,
-        }
-    }
-}
-
-impl WTOscVoice {
-    #[allow(dead_code)]
-    fn set_num_oscs(&mut self, num_oscs: NonZeroUsize) -> bool {
-        let valid_index = num_oscs.get() <= NUM_VOICE_OSCILLATORS;
-        if valid_index {
-            self.num_oscs = num_oscs
-        }
-        valid_index
-    }
-
-    unsafe fn set_num_oscs_unchecked(&mut self, num_oscs: NonZeroUsize) {
-        self.num_oscs = num_oscs;
-    }
-
-    fn active_oscs_mut(&mut self) -> &mut [Oscillator] {
-        unsafe { self.oscs.get_unchecked_mut(..self.num_oscs.get()) }
-    }
-
-    pub fn deactivate(&mut self) {}
-
-    pub fn activate(&mut self, params: VoiceParams) {
-        self.set_params_instantly(params);
-    }
-
-    pub fn set_params_instantly(&mut self, params: VoiceParams) {
-        unsafe { self.set_num_oscs_unchecked(params.num_oscillators()) };
-
-        self.active_oscs_mut()
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, osc)| osc.set_params_instantly(OscillatorParams::new(i, &params)));
-    }
-
-    pub fn set_params_smoothed(&mut self, params: VoiceParams, inc: Float) {
-        unsafe { self.set_num_oscs_unchecked(params.num_oscillators()) };
-
-        self.active_oscs_mut()
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, osc)| osc.set_params_smoothed(OscillatorParams::new(i, &params), inc));
+impl VoiceParams {
+    #[inline]
+    pub fn new(index: usize, params: &WTOscClusterNormParams) -> Option<(Self, NonZeroUsize)> {
+        (index < STEREO_VOICES_PER_VECTOR)
+            // SAFETY: i has just been bounds checked
+            .then(|| unsafe { Self::new_unchecked(index, params) })
     }
 
     #[inline]
-    pub fn process(&mut self, table: &BandLimitedWaveTables) -> f32x2 {
-        let mut samples = self.oscs[0].advance_and_resample(table);
+    pub unsafe fn new_unchecked(
+        index: usize,
+        params: &WTOscClusterNormParams,
+    ) -> (Self, NonZeroUsize) {
+        let i = index;
 
-        self.oscs[1..]
-            .iter_mut()
-            .for_each(|osc| samples += osc.advance_and_resample(table));
+        let norm_detune = split_stereo(&params.detune.current).get_unchecked(i);
+        let norm_detune_range = split_stereo(&params.detune_range.current).get_unchecked(i);
 
-        sum_to_stereo_sample(samples)
+        let pitch_range_semitones = Simd::splat(48.0);
+
+        let detune = norm_detune * norm_detune_range * pitch_range_semitones;
+        let norm_transpose = split_stereo(&params.transpose.current).get_unchecked(i);
+        let transpose = norm_transpose * pitch_range_semitones;
+
+        let num_voices = split_stereo(&params.num_voices_f()).get_unchecked(i).cast();
+
+        let fpv = Simd::splat(FLOATS_PER_VECTOR as u32);
+        let onex2 = Simd::splat(1);
+
+        // (panic) SAFETY: FLOATS_PER_VECTOR is garanteed to be a non-zero multiple of 2
+        let n = (num_voices + fpv - onex2) / fpv;
+        let num_oscs_stereo = n + (n & onex2);
+
+        (
+            Self {
+                base_norm_frame: splat_stereo(*split_stereo(&params.frame.current).get_unchecked(i)),
+                transpose: splat_stereo(transpose),
+                detune: splat_stereo(detune),
+                num_voices: splat_stereo(num_voices),
+                base_phase_delta: splat_stereo(*split_stereo(&params.phase_delta).get_unchecked(i)),
+            },
+            // (panic) SAFETY: num_voices is garanteed to be nonzero
+            NonZeroUsize::new(num_oscs_stereo.reduce_max() as usize).unwrap(),
+        )
     }
 
-    pub fn reset(&mut self) {
-        self.oscs.iter_mut().for_each(Oscillator::reset)
+    #[inline]
+    pub fn get_params(&self, index: usize) -> (Float, Float, TMask) {
+        let half_f = Float::splat(0.5);
+        let one_u = UInt::splat(1);
+        let last_voice_pair_idx =
+            UInt::splat(((MAX_UNISON + (MAX_UNISON & 1) >> 1) - 1).max(1) as u32);
+        let last_voice_pair_idx_f = last_voice_pair_idx.cast::<f32>();
+        let max_float_bit_index = UInt::splat(mem::size_of::<f32>() as u32 * 8 - 1);
+        let counting = UInt::from_array(array::from_fn(|i| i as u32));
+        let counting_by2 = counting >> one_u;
+
+        let v_osc_index = UInt::splat((index * FLOATS_PER_VECTOR) as u32);
+        let voice_indices = v_osc_index + counting;
+        let voice_pair_indices = v_osc_index + counting_by2;
+        let pair_detunes = last_voice_pair_idx - voice_pair_indices;
+        let sign_mask = (voice_indices ^ voice_pair_indices) << max_float_bit_index;
+
+        let num_voices = self.num_voices;
+        let half_num_voices_f = num_voices.cast() * half_f;
+        let abs_norm_detunes = (half_num_voices_f - pair_detunes.cast()) / half_num_voices_f;
+        let norm_detunes = Float::from_bits(abs_norm_detunes.to_bits() ^ sign_mask);
+
+        let detune_semitones = self.detune.mul_add(norm_detunes, self.transpose);
+        let detune_ratio = semitones_to_ratio(detune_semitones);
+        let phase_delta = self.unison_stack_mult(index) * detune_ratio;
+
+        let norm_voice_spread = voice_pair_indices.cast::<f32>() / last_voice_pair_idx_f;
+
+        let norm_frame = norm_voice_spread.mul_add(self.frame_spread(index), self.base_norm_frame);
+
+        let norm_frame_clamped = norm_frame.simd_clamp(Simd::splat(0.001), Simd::splat(0.999));
+
+        let mask = Self::get_gather_mask(num_voices, voice_indices);
+
+        (phase_delta, norm_frame_clamped, mask)
+    }
+
+    #[inline]
+    fn get_gather_mask(num_voices: UInt, voice_indices: UInt) -> TMask {
+        num_voices.simd_gt(voice_indices)
+    }
+
+    #[inline]
+    fn unison_stack_mult(&self, index: usize) -> Float {
+        Float::splat(1.)
+    }
+
+    #[inline]
+    fn frame_spread(&self, index: usize) -> Float {
+        Float::splat(0.)
+    }
+}
+
+#[derive(Default, Clone, Copy)]
+pub struct Oscillator {
+    phase: UInt,
+    frame: LinearSmoother,
+    phase_delta: LogSmoother,
+}
+
+impl Oscillator {
+    #[inline]
+    pub fn scale_frame(&mut self, ratio: Float) {
+        self.frame.scale(ratio);
+    }
+
+    #[inline]
+    pub fn scale_phase_delta(&mut self, ratio: Float) {
+        self.phase_delta.scale(ratio);
+    }
+
+    #[inline]
+    pub fn set_phase_delta(&mut self, phase_delta: Float) {
+        self.phase_delta.set_all_vals_instantly(phase_delta);
+    }
+
+    #[inline]
+    pub fn set_phase_delta_smoothed(&mut self, phase_delta: Float, t_recip: Float) {
+        self.phase_delta.set_target_recip(phase_delta, t_recip);
+    }
+
+    #[inline]
+    pub fn set_frame(&mut self, frame: Float) {
+        self.frame.set_all_vals_instantly(frame);
+    }
+
+    #[inline]
+    pub fn set_frame_smoothed(&mut self, frame: Float, t_recip: Float) {
+        self.frame.set_target(frame, t_recip);
+    }
+
+    #[inline]
+    pub fn set_params_smoothed(
+        &mut self,
+        voice_params: &VoiceParams,
+        voice_params_index: usize,
+        num_frames_f: Float,
+        smooth_dt: Float,
+    ) -> TMask {
+        let (norm_frame, total_detune, mask) = voice_params.get_params(voice_params_index);
+
+        self.set_frame_smoothed(num_frames_f * norm_frame, smooth_dt);
+        self.set_phase_delta_smoothed(voice_params.base_phase_delta * total_detune, smooth_dt);
+
+        mask
+    }
+
+    #[inline]
+    pub fn set_params(
+        &mut self,
+        voice_params: &VoiceParams,
+        voice_params_index: usize,
+        num_frames_f: Float,
+    ) {
+        let (norm_frame, total_detune, _) = voice_params.get_params(voice_params_index);
+
+        self.set_frame(num_frames_f * norm_frame);
+        self.set_phase_delta(voice_params.base_phase_delta * total_detune);
+    }
+
+    #[inline]
+    pub fn set_phase(&mut self, phase: UInt) {
+        self.phase = phase;
+    }
+
+    #[inline]
+    pub fn tick_smoothers(&mut self) {
+        self.frame.tick1();
+        self.phase_delta.tick1();
+    }
+
+    #[inline]
+    pub unsafe fn tick_all(&mut self, table: &BandLimitedWaveTables, mask: TMask) -> Float {
+        let w = flp_to_fxp(self.phase_delta.get_current());
+        let frame = unsafe { self.frame.get_current().to_int_unchecked() };
+        let out = table.resample_select(w, frame, self.phase, mask);
+        self.phase += w;
+        self.tick_smoothers();
+
+        out
     }
 }

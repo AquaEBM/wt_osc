@@ -1,5 +1,4 @@
 use crate::{basic_shapes::WAVETABLES, *};
-use core::mem;
 use hound::{SampleFormat, WavReader};
 use realfft::{num_complex::Complex32, RealFftPlanner};
 use std::io;
@@ -12,6 +11,17 @@ pub struct BandLimitedWaveTables {
 impl Default for Box<BandLimitedWaveTables> {
     fn default() -> Self {
         BandLimitedWaveTables::with_frame_count_owned(0)
+    }
+}
+
+impl From<&[[f32; BandLimitedWaveTables::FRAME_LEN]]> for Box<BandLimitedWaveTables> {
+    fn from(table: &[[f32; BandLimitedWaveTables::FRAME_LEN]]) -> Self {
+        let mut this = BandLimitedWaveTables::with_frame_count_owned(table.len());
+
+        this.write_table(table);
+        this.create_mipmaps();
+
+        this
     }
 }
 
@@ -100,7 +110,7 @@ impl BandLimitedWaveTables {
     }
 
     #[inline]
-    pub fn resample_select(
+    pub unsafe fn resample_select(
         &self,
         phase_delta: UInt,
         frame: UInt,
@@ -124,7 +134,7 @@ impl BandLimitedWaveTables {
     }
 
     #[inline]
-    pub fn resample(&self, phase_delta: UInt, frame: UInt, phase: UInt) -> Float {
+    pub unsafe fn resample(&self, phase_delta: UInt, frame: UInt, phase: UInt) -> Float {
         let (fract, start_idx, end_idx) = Self::get_resample_data(phase, frame, phase_delta);
 
         let this = self.as_ptr();
