@@ -11,10 +11,10 @@ pub mod wavetable;
 
 use alloc::sync::Arc;
 use cluster::{WTOscClusterNormParams, WTOscVoiceCluster};
-use core::{any::Any, array, cell::Cell, iter, mem, num::NonZeroUsize};
+use core::{any::Any, array, cell::Cell, f32::consts::FRAC_1_SQRT_2, iter, mem, num::NonZeroUsize};
 use polygraph::{
     buffer::Buffers,
-    processor::{Params, Processor},
+    processor::{Parameters, Processor},
     simd_util::{
         math::*,
         simd::{prelude::*, Simd, StdFloat},
@@ -29,6 +29,17 @@ const MAX_UNISON: usize = 16;
 const OSCS_PER_VOICE: usize = enclosing_div(MAX_UNISON, FLOATS_PER_VECTOR);
 const NUM_PARAMS: u64 = 9;
 const MAX_PARAM_INDEX: u64 = NUM_PARAMS - 1;
+pub static DEFAULT_PARAMS: [f32x2; NUM_PARAMS as usize] = [
+    f32x2::from_array([FRAC_1_SQRT_2; 2]), // level
+    f32x2::from_array([0.0; 2]),           // frame
+    f32x2::from_array([0.0; 2]),           // num_voices
+    f32x2::from_array([0.5; 2]),           // detune
+    f32x2::from_array([0.5; 2]),           // pan
+    f32x2::from_array([0.5; 2]),           // transpose
+    f32x2::from_array([1.0; 2]),           // stereo
+    f32x2::from_array([1.0 / 48.0; 2]),    // detune range
+    f32x2::from_array([1.0; 2]),           // random amount
+];
 
 #[derive(Default)]
 pub struct WTOsc {
@@ -65,9 +76,8 @@ impl Processor for WTOsc {
 
             let num_frames_f = Float::splat(num_frames.get() as f32);
 
-            let scratch_buffer = &mut self.scratch_buffer[..buffer_size];
-
-            for (voice_index, voice) in cluster.voices_mut()
+            for (voice_index, voice) in cluster
+                .voices_mut()
                 .iter_mut()
                 .enumerate()
                 .zip(voice_mask.to_array().into_iter().step_by(2))
@@ -87,6 +97,8 @@ impl Processor for WTOsc {
                     .step_by(STEREO_VOICES_PER_VECTOR);
 
                 if OSCS_PER_VOICE > 1 {
+                    let scratch_buffer = &mut self.scratch_buffer[..buffer_size];
+
                     for sample in scratch_buffer.iter_mut() {
                         *sample = unsafe { first_osc.tick_all(table, mask) };
                     }
@@ -108,6 +120,8 @@ impl Processor for WTOsc {
                         out_sample.set(sum_to_stereo_sample(scratch));
                     }
                 } else {
+                    // Devices with AVX-512 (16 floats) can process all unison
+                    // voices at once so no need for the scratch buffer
                     for out_sample in voice_samples {
                         let output = unsafe { first_osc.tick_all(table, mask) };
                         out_sample.set(sum_to_stereo_sample(output));
@@ -143,6 +157,8 @@ impl Processor for WTOsc {
             .take(max_num_clusters)
             .collect();
 
+        // On, devices with vectors that can hold as many or more floats as there are unison voices
+        // (e. g. AVX-512 for 16 voices) a scratch buffer wouldn't be necessary
         self.scratch_buffer = unsafe {
             Box::new_uninit_slice(if OSCS_PER_VOICE > 1 {
                 max_buffer_size
@@ -165,9 +181,12 @@ impl Processor for WTOsc {
 
     fn custom_event(&mut self, event: &mut dyn Any) {
         if let Some(wt) = event.downcast_mut::<Box<BandLimitedWaveTables>>() {
-            let ratio = Simd::splat(wt.num_frames() as f32 / self.table.num_frames() as f32);
-            for cluster in self.clusters.iter_mut() {
-                cluster.scale_frames(ratio);
+            if self.table.num_frames() != 0 {
+                let ratio = Simd::splat(wt.num_frames() as f32 / self.table.num_frames() as f32);
+
+                for cluster in self.clusters.iter_mut() {
+                    cluster.scale_frames(ratio);
+                }
             }
 
             mem::swap(wt, &mut self.table);
@@ -233,12 +252,14 @@ impl Processor for WTOsc {
         &mut self,
         cluster_idx: usize,
         voice_mask: &<Self::Sample as SimdFloat>::Mask,
-        params: Params,
+        params: &dyn Parameters<Float>,
     ) {
         let cluster_params = &mut self.params[cluster_idx];
 
         for param_id in 0..NUM_PARAMS {
-            cluster_params.set_param_instantly(param_id, params.get_param(param_id), voice_mask);
+            let param_value = params.get_param(param_id, cluster_idx, voice_mask).unwrap();
+
+            cluster_params.set_param_instantly(param_id, param_value, voice_mask);
         }
 
         let num_frames_f = Simd::splat(self.table.num_frames() as f32);
@@ -250,7 +271,72 @@ impl Processor for WTOsc {
 #[cfg(test)]
 mod tests {
 
-    pub fn test() {
+    use std::io::{self, Write};
 
+    use polygraph::{
+        buffer::{BufferHandle, BufferIndices, OutputBufferIndex},
+        processor::{new_vfloat_buffer, ParamsList},
+    };
+
+    use super::*;
+
+    #[test]
+    pub fn test() {
+        const MAX_BUFFER_SIZE: usize = 256;
+        const CLUSTER_IDX: usize = 0;
+
+        let mut osc = WTOsc::default();
+        osc.initialize(44100., MAX_BUFFER_SIZE, 1);
+        let voice_mask = TMask::splat(true);
+
+        let mut wt = Box::<BandLimitedWaveTables>::from(basic_shapes::WAVETABLES.as_slice());
+        osc.custom_event(&mut wt);
+
+        let mut starting_phases = [0.0; MAX_UNISON];
+        osc.custom_event(&mut starting_phases);
+
+        let mut notes = Simd::splat(0.);
+        let notes_stereo = split_stereo_mut(&mut notes);
+        for (i, note) in notes_stereo.iter_mut().enumerate() {
+            *note = f32x2::splat((9 + 12 * i) as f32);
+        }
+
+        osc.reset(CLUSTER_IDX, &voice_mask);
+        osc.set_voice_note(CLUSTER_IDX, &voice_mask, notes);
+
+        let params = ParamsList(Box::new([DEFAULT_PARAMS
+            .iter()
+            .copied()
+            .map(splat_stereo)
+            .collect()]));
+        osc.set_all_params(CLUSTER_IDX, &voice_mask, &params);
+
+        let mut intermediate_buffers = Box::new([new_vfloat_buffer::<Float>(MAX_BUFFER_SIZE)]);
+
+        let buffers = Buffers::new(
+            0,
+            NonZeroUsize::new(MAX_BUFFER_SIZE).unwrap(),
+            BufferIndices::new(
+                BufferHandle::toplevel(intermediate_buffers.as_ref()),
+                &[],
+                &[Some(OutputBufferIndex::Intermediate(0))],
+            ),
+        );
+
+        osc.process(buffers, CLUSTER_IDX, &voice_mask);
+
+        let mut stdout = io::stdout().lock();
+
+        writeln!(stdout, "[").unwrap();
+
+        let (last, samples) = Cell::get_mut(intermediate_buffers[0].as_mut())
+            .split_last_mut()
+            .unwrap();
+
+        for sample in samples {
+            writeln!(stdout, "{sample:?},").unwrap();
+        }
+
+        writeln!(stdout, "{last:?}]").unwrap();
     }
 }

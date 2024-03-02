@@ -28,9 +28,10 @@ impl VoiceParams {
 
         let pitch_range_semitones = Simd::splat(48.0);
 
-        let detune = norm_detune * norm_detune_range * pitch_range_semitones;
+        let detune = norm_detune_range * pitch_range_semitones * norm_detune;
         let norm_transpose = split_stereo(&params.transpose.current).get_unchecked(i);
-        let transpose = norm_transpose * pitch_range_semitones;
+        let transpose =
+            (Simd::splat(2.0) * norm_transpose - Simd::splat(1.0)) * pitch_range_semitones;
 
         let num_voices = split_stereo(&params.num_voices_f()).get_unchecked(i).cast();
 
@@ -38,12 +39,14 @@ impl VoiceParams {
         let onex2 = Simd::splat(1);
 
         // (panic) SAFETY: FLOATS_PER_VECTOR is garanteed to be a non-zero multiple of 2
-        let n = (num_voices + fpv - onex2) / fpv;
-        let num_oscs_stereo = n + (n & onex2);
+        let n = num_voices + (num_voices & onex2);
+        let num_oscs_stereo = (n + fpv - onex2) / fpv;
 
         (
             Self {
-                base_norm_frame: splat_stereo(*split_stereo(&params.frame.current).get_unchecked(i)),
+                base_norm_frame: splat_stereo(
+                    *split_stereo(&params.frame.current).get_unchecked(i),
+                ),
                 transpose: splat_stereo(transpose),
                 detune: splat_stereo(detune),
                 num_voices: splat_stereo(num_voices),
@@ -56,8 +59,8 @@ impl VoiceParams {
 
     #[inline]
     pub fn get_params(&self, index: usize) -> (Float, Float, TMask) {
-        let half_f = Float::splat(0.5);
         let one_u = UInt::splat(1);
+        let two_u = UInt::splat(2);
         let last_voice_pair_idx =
             UInt::splat(((MAX_UNISON + (MAX_UNISON & 1) >> 1) - 1).max(1) as u32);
         let last_voice_pair_idx_f = last_voice_pair_idx.cast::<f32>();
@@ -68,12 +71,13 @@ impl VoiceParams {
         let v_osc_index = UInt::splat((index * FLOATS_PER_VECTOR) as u32);
         let voice_indices = v_osc_index + counting;
         let voice_pair_indices = v_osc_index + counting_by2;
-        let pair_detunes = last_voice_pair_idx - voice_pair_indices;
         let sign_mask = (voice_indices ^ voice_pair_indices) << max_float_bit_index;
 
         let num_voices = self.num_voices;
-        let half_num_voices_f = num_voices.cast() * half_f;
-        let abs_norm_detunes = (half_num_voices_f - pair_detunes.cast()) / half_num_voices_f;
+
+        let detune_step = (num_voices.simd_max(two_u) - one_u).cast::<f32>().recip();
+        let start = (num_voices + one_u) & one_u;
+        let abs_norm_detunes = detune_step * (start + (voice_pair_indices << one_u)).cast::<f32>();
         let norm_detunes = Float::from_bits(abs_norm_detunes.to_bits() ^ sign_mask);
 
         let detune_semitones = self.detune.mul_add(norm_detunes, self.transpose);
@@ -84,9 +88,9 @@ impl VoiceParams {
 
         let norm_frame = norm_voice_spread.mul_add(self.frame_spread(index), self.base_norm_frame);
 
-        let norm_frame_clamped = norm_frame.simd_clamp(Simd::splat(0.001), Simd::splat(0.999));
+        let norm_frame_clamped = norm_frame.simd_clamp(Simd::splat(0.0001), Simd::splat(0.9999));
 
-        let mask = Self::get_gather_mask(num_voices, voice_indices);
+        let mask = Self::get_gather_mask(num_voices + (num_voices & one_u), voice_indices);
 
         (phase_delta, norm_frame_clamped, mask)
     }
@@ -142,7 +146,7 @@ impl Oscillator {
 
     #[inline]
     pub fn set_frame_smoothed(&mut self, frame: Float, t_recip: Float) {
-        self.frame.set_target(frame, t_recip);
+        self.frame.set_target_recip(frame, t_recip);
     }
 
     #[inline]
@@ -153,7 +157,7 @@ impl Oscillator {
         num_frames_f: Float,
         smooth_dt: Float,
     ) -> TMask {
-        let (norm_frame, total_detune, mask) = voice_params.get_params(voice_params_index);
+        let (total_detune, norm_frame, mask) = voice_params.get_params(voice_params_index);
 
         self.set_frame_smoothed(num_frames_f * norm_frame, smooth_dt);
         self.set_phase_delta_smoothed(voice_params.base_phase_delta * total_detune, smooth_dt);
@@ -168,7 +172,7 @@ impl Oscillator {
         voice_params_index: usize,
         num_frames_f: Float,
     ) {
-        let (norm_frame, total_detune, _) = voice_params.get_params(voice_params_index);
+        let (total_detune, norm_frame, _) = voice_params.get_params(voice_params_index);
 
         self.set_frame(num_frames_f * norm_frame);
         self.set_phase_delta(voice_params.base_phase_delta * total_detune);

@@ -132,19 +132,11 @@ impl WTOscClusterNormParams {
     }
 
     #[inline]
-    pub fn set_param_target(
-        &mut self,
-        param_id: u64,
-        norm_val: Float,
-        voice_mask: &TMask,
-    ) {
+    pub fn set_param_target(&mut self, param_id: u64, norm_val: Float, voice_mask: &TMask) {
         match param_id {
             0..=MAX_PARAM_INDEX => {
                 let smoother = self.get_param_smoother_mut(param_id);
-                smoother.set_target(
-                    norm_val,
-                    voice_mask,
-                );
+                smoother.set_target(norm_val, voice_mask);
             }
             _ => unreachable!(),
         }
@@ -187,7 +179,6 @@ pub struct WTOscVoiceCluster {
 }
 
 impl WTOscVoiceCluster {
-
     #[inline]
     pub fn voices_mut(&mut self) -> &mut [[Oscillator; OSCS_PER_VOICE]; STEREO_VOICES_PER_VECTOR] {
         &mut self.voices
@@ -270,7 +261,6 @@ impl WTOscVoiceCluster {
         }
     }
 
-
     #[inline]
     pub unsafe fn move_state_unchecked(
         this: &Cell<Self>,
@@ -327,7 +317,8 @@ impl WTOscVoiceCluster {
         randomisation: &Float,
         starting_phases: &[Float; OSCS_PER_VOICE],
     ) {
-        for (voice, &random) in self.voices
+        for (voice, &random) in self
+            .voices
             .iter_mut()
             .zip(split_stereo(randomisation))
             .zip(voice_mask.to_array().into_iter().step_by(2))
