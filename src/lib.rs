@@ -25,7 +25,7 @@ use polygraph::{
 use voice::VoiceParams;
 use wavetable::BandLimitedWaveTables;
 
-const MAX_UNISON: usize = 16;
+pub const MAX_UNISON: usize = 16;
 const OSCS_PER_VOICE: usize = enclosing_div(MAX_UNISON, FLOATS_PER_VECTOR);
 const NUM_PARAMS: u64 = 9;
 const MAX_PARAM_INDEX: u64 = NUM_PARAMS - 1;
