@@ -26,7 +26,7 @@ impl VoiceParams {
         let norm_detune = split_stereo(&params.detune.current).get_unchecked(i);
         let norm_detune_range = split_stereo(&params.detune_range.current).get_unchecked(i);
 
-        let pitch_range_semitones = Simd::splat(48.0);
+        let pitch_range_semitones = Simd::splat(PITCH_RANGE_SEMITONES);
 
         let detune = norm_detune_range * pitch_range_semitones * norm_detune;
         let norm_transpose = split_stereo(&params.transpose.current).get_unchecked(i);
