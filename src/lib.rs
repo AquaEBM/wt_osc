@@ -1,4 +1,4 @@
-#![feature(portable_simd, new_uninit, as_array_of_cells)]
+#![feature(portable_simd, new_uninit, as_array_of_cells, slice_flatten)]
 
 extern crate alloc;
 
@@ -93,6 +93,7 @@ impl Processor for WTOsc {
 
                 let mask = first_osc.set_params_smoothed(&voice_params, 0, num_frames_f, smooth_dt);
                 let voice_samples = split_stereo_cell_slice(output_buf)
+                    .flatten()
                     .iter()
                     .skip(voice_index)
                     .step_by(STEREO_VOICES_PER_VECTOR);
@@ -161,12 +162,7 @@ impl Processor for WTOsc {
         // On, devices with vectors that can hold as many or more floats as there are unison voices
         // (e. g. AVX-512 for 16 voices) a scratch buffer wouldn't be necessary
         self.scratch_buffer = unsafe {
-            Box::new_uninit_slice(if OSCS_PER_VOICE > 1 {
-                max_buffer_size
-            } else {
-                0
-            })
-            .assume_init()
+            Box::new_uninit_slice((OSCS_PER_VOICE > 1) as usize * max_buffer_size).assume_init()
         };
     }
 
@@ -236,9 +232,11 @@ impl Processor for WTOsc {
             .expect("out of bounds voice indices")
     }
 
-    fn set_voice_note(&mut self, cluster_idx: usize, voice_mask: &TMask, note: Float) {
-        let c4_phase_delta = Simd::splat(440. / self.sr);
-        let new_phase_delta = c4_phase_delta * semitones_to_ratio(note - Simd::splat(69.0));
+    fn set_voice_note(&mut self, cluster_idx: usize, voice_mask: &TMask, note: &UInt) {
+        let a4_phase_delta = Simd::splat(440. / self.sr);
+        let nice = Simd::splat(69);
+        let a4_detune_semitones = note.cast::<i32>() - nice;
+        let new_phase_delta = a4_phase_delta * semitones_to_ratio(a4_detune_semitones.cast());
 
         let params = &mut self.params[cluster_idx];
 
