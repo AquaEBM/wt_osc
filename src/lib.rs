@@ -294,14 +294,14 @@ mod tests {
         let mut starting_phases = [0.0; MAX_UNISON];
         osc.custom_event(&mut starting_phases);
 
-        let mut notes = Simd::splat(0.);
+        let mut notes = Simd::splat(0);
         let notes_stereo = split_stereo_mut(&mut notes);
         for (i, note) in notes_stereo.iter_mut().enumerate() {
-            *note = f32x2::splat((9 + 12 * i) as f32);
+            *note = u32x2::splat(9 + 12 * i as u32);
         }
 
         osc.reset(CLUSTER_IDX, &voice_mask);
-        osc.set_voice_note(CLUSTER_IDX, &voice_mask, notes);
+        osc.set_voice_note(CLUSTER_IDX, &voice_mask, &notes);
 
         let params = ParamsList(Box::new([DEFAULT_PARAMS
             .iter()
