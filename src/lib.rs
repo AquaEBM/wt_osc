@@ -60,7 +60,7 @@ impl Processor for WTOsc {
         (0, 1)
     }
 
-    fn process(&mut self, buffers: Buffers<Float>, cluster_idx: usize, voice_mask: &TMask) {
+    fn process(&mut self, buffers: Buffers<Float>, cluster_idx: usize, voice_mask: TMask) {
         let table = self.table.as_ref();
 
         if let Some((output_buf, num_frames)) = buffers
@@ -169,7 +169,7 @@ impl Processor for WTOsc {
     fn set_param(
         &mut self,
         cluster_idx: usize,
-        voice_mask: &TMask,
+        voice_mask: TMask,
         param_id: u64,
         norm_val: Float,
     ) {
@@ -198,8 +198,8 @@ impl Processor for WTOsc {
         }
     }
 
-    fn reset(&mut self, cluster_idx: usize, voice_mask: &TMask) {
-        let random = &self.params[cluster_idx].random.current;
+    fn reset(&mut self, cluster_idx: usize, voice_mask: TMask) {
+        let random = self.params[cluster_idx].random.current;
         self.clusters[cluster_idx].reset_phases(voice_mask, random, &self.starting_phases);
     }
 
@@ -232,7 +232,13 @@ impl Processor for WTOsc {
             .expect("out of bounds voice indices")
     }
 
-    fn set_voice_note(&mut self, cluster_idx: usize, voice_mask: &TMask, note: &UInt) {
+    fn activate_voices(
+        &mut self,
+        cluster_idx: usize,
+        voice_mask: TMask,
+        velocity: Float,
+        note: UInt,
+    ) {
         let a4_phase_delta = Simd::splat(440. / self.sr);
         let nice = Simd::splat(69);
         let a4_detune_semitones = note.cast::<i32>() - nice;
@@ -250,7 +256,7 @@ impl Processor for WTOsc {
     fn set_all_params(
         &mut self,
         cluster_idx: usize,
-        voice_mask: &<Self::Sample as SimdFloat>::Mask,
+        voice_mask: TMask,
         params: &dyn Parameters<Float>,
     ) {
         let cluster_params = &mut self.params[cluster_idx];
@@ -300,15 +306,15 @@ mod tests {
             *note = u32x2::splat(9 + 12 * i as u32);
         }
 
-        osc.reset(CLUSTER_IDX, &voice_mask);
-        osc.set_voice_note(CLUSTER_IDX, &voice_mask, &notes);
+        osc.reset(CLUSTER_IDX, voice_mask);
+        osc.activate_voices(CLUSTER_IDX, voice_mask, Float::splat(1.0), notes);
 
         let params = ParamsList(Box::new([DEFAULT_PARAMS
             .iter()
             .copied()
             .map(splat_stereo)
             .collect()]));
-        osc.set_all_params(CLUSTER_IDX, &voice_mask, &params);
+        osc.set_all_params(CLUSTER_IDX, voice_mask, &params);
 
         let mut intermediate_buffers = Box::new([new_vfloat_buffer::<Float>(MAX_BUFFER_SIZE)]);
 
@@ -322,7 +328,7 @@ mod tests {
             ),
         );
 
-        osc.process(buffers, CLUSTER_IDX, &voice_mask);
+        osc.process(buffers, CLUSTER_IDX, voice_mask);
 
         let mut stdout = io::stdout().lock();
 

@@ -127,12 +127,12 @@ impl WTOscClusterNormParams {
     }
 
     #[inline]
-    pub fn set_base_phase_delta(&mut self, w: Float, voice_mask: &TMask) {
+    pub fn set_base_phase_delta(&mut self, w: Float, voice_mask: TMask) {
         self.phase_delta = voice_mask.select(w, self.phase_delta);
     }
 
     #[inline]
-    pub fn set_param_target(&mut self, param_id: u64, norm_val: Float, voice_mask: &TMask) {
+    pub fn set_param_target(&mut self, param_id: u64, norm_val: Float, voice_mask: TMask) {
         match param_id {
             0..=MAX_PARAM_INDEX => {
                 let smoother = self.get_param_smoother_mut(param_id);
@@ -143,7 +143,7 @@ impl WTOscClusterNormParams {
     }
 
     #[inline]
-    pub fn set_param_instantly(&mut self, param_id: u64, norm_val: Float, voice_mask: &TMask) {
+    pub fn set_param_instantly(&mut self, param_id: u64, norm_val: Float, voice_mask: TMask) {
         match param_id {
             0..=MAX_PARAM_INDEX => {
                 let smoother = self.get_param_smoother_mut(param_id);
@@ -199,7 +199,7 @@ impl WTOscVoiceCluster {
     }
 
     #[inline]
-    pub fn set_weights(&mut self, params: &WTOscClusterNormParams, voice_mask: &TMask) {
+    pub fn set_weights(&mut self, params: &WTOscClusterNormParams, voice_mask: TMask) {
         let (normal, flipped) = params.get_sample_weights();
         self.normal_weights.set_val_instantly(normal, voice_mask);
         self.flipped_weights.set_val_instantly(flipped, voice_mask);
@@ -235,7 +235,7 @@ impl WTOscVoiceCluster {
         &mut self,
         params: &WTOscClusterNormParams,
         num_frames_f: Float,
-        voice_mask: &TMask,
+        voice_mask: TMask,
     ) {
         self.set_weights(params, voice_mask);
         for (i, oscs) in self
@@ -313,14 +313,14 @@ impl WTOscVoiceCluster {
     #[inline]
     pub fn reset_phases(
         &mut self,
-        voice_mask: &TMask,
-        randomisation: &Float,
+        voice_mask: TMask,
+        randomisation: Float,
         starting_phases: &[Float; OSCS_PER_VOICE],
     ) {
         for (voice, &random) in self
             .voices
             .iter_mut()
-            .zip(split_stereo(randomisation))
+            .zip(split_stereo(&randomisation))
             .zip(voice_mask.to_array().into_iter().step_by(2))
             .filter_map(|(data, active)| active.then_some(data))
         {
