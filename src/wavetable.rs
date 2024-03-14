@@ -10,13 +10,13 @@ pub struct BandLimitedWaveTables {
 
 impl Default for Box<BandLimitedWaveTables> {
     fn default() -> Self {
-        BandLimitedWaveTables::with_frame_count_owned(0)
+        BandLimitedWaveTables::basic_shapes()
     }
 }
 
 impl From<&[[f32; BandLimitedWaveTables::FRAME_LEN]]> for Box<BandLimitedWaveTables> {
     fn from(table: &[[f32; BandLimitedWaveTables::FRAME_LEN]]) -> Self {
-        let mut this = BandLimitedWaveTables::with_frame_count_owned(table.len());
+        let mut this = BandLimitedWaveTables::with_frame_count(table.len());
 
         this.write_table(table);
         this.create_mipmaps();
@@ -46,16 +46,13 @@ impl BandLimitedWaveTables {
         self.as_slice().len()
     }
 
-    pub fn with_frame_count_shared(num_frames: usize) -> Arc<Self> {
-        // SAFETY: both types have the same layout and zero (0.0) is a valid float value
-        unsafe {
-            mem::transmute::<Arc<[[[f32; Self::FRAME_LEN]; Self::NUM_MIPMAPS]]>, Arc<Self>>(
-                Arc::new_zeroed_slice(num_frames).assume_init(),
-            )
-        }
+    #[inline]
+    pub fn empty() -> Box<Self> {
+        Self::with_frame_count(0)
     }
 
-    pub fn with_frame_count_owned(num_frames: usize) -> Box<Self> {
+    #[inline]
+    pub fn with_frame_count(num_frames: usize) -> Box<Self> {
         // SAFETY: both types have the same size/layout and zero (0.0) is a valid float value
         unsafe {
             mem::transmute::<Box<[[[f32; Self::FRAME_LEN]; Self::NUM_MIPMAPS]]>, Box<Self>>(
@@ -64,10 +61,7 @@ impl BandLimitedWaveTables {
         }
     }
 
-    pub fn write_basic_shapes(&mut self) {
-        self.write_table(WAVETABLES.as_slice());
-    }
-
+    #[inline]
     pub fn write_table(&mut self, frames: &[[f32; Self::FRAME_LEN]]) {
         let this = self.as_mut_slice();
         assert_eq!(this.len(), frames.len());
@@ -79,6 +73,11 @@ impl BandLimitedWaveTables {
         {
             input.copy_from_slice(output);
         }
+    }
+
+    #[inline]
+    pub fn basic_shapes() -> Box<Self> {
+        WAVETABLES.as_slice().into()
     }
 
     /// How many octaves of frequency content our wavetables have, this
@@ -149,7 +148,7 @@ impl BandLimitedWaveTables {
         lerp(a, b, fract)
     }
 
-    pub fn from_wav_file(reader: impl io::Read) -> Arc<Self> {
+    pub fn from_wav_file(reader: impl io::Read) -> Box<Self> {
         let reader = WavReader::new(reader).unwrap();
         let num_samples = reader.len() as usize;
 
@@ -158,11 +157,9 @@ impl BandLimitedWaveTables {
 
         let num_frames = num_samples / Self::FRAME_LEN;
 
-        let mut table = Self::with_frame_count_shared(num_frames);
+        let mut table = Self::with_frame_count(num_frames);
 
-        let table_mut = Arc::get_mut(&mut table).unwrap();
-
-        for (output, input) in table_mut
+        for (output, input) in table
             .as_mut_slice()
             .iter_mut()
             .flat_map(|mipmaps| mipmaps.last_mut().unwrap())
@@ -171,11 +168,12 @@ impl BandLimitedWaveTables {
             *output = input;
         }
 
-        table_mut.create_mipmaps();
+        table.create_mipmaps();
 
         table
     }
 
+    #[inline]
     pub fn create_mipmaps(&mut self) {
         let mut fft = RealFftPlanner::<f32>::new();
 

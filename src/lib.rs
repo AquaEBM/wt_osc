@@ -9,7 +9,6 @@ mod voice;
 mod basic_shapes;
 pub mod wavetable;
 
-use alloc::sync::Arc;
 use cluster::{WTOscClusterNormParams, WTOscVoiceCluster};
 use core::{any::Any, array, cell::Cell, f32::consts::FRAC_1_SQRT_2, iter, mem, num::NonZeroUsize};
 use polygraph::{
