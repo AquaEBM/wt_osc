@@ -64,6 +64,7 @@ impl WTOscClusterNormParams {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn move_state(this: &Cell<Self>, from: usize, other: &Cell<Self>, to: usize) {
         if from < STEREO_VOICES_PER_VECTOR && to < STEREO_VOICES_PER_VECTOR {
             // SAFETY: `from and `to` have just been bounds checked
@@ -254,6 +255,7 @@ impl WTOscVoiceCluster {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn move_state(this: &Cell<Self>, from: usize, other: &Cell<Self>, to: usize) {
         if from < STEREO_VOICES_PER_VECTOR && to < STEREO_VOICES_PER_VECTOR {
             // SAFETY: `from and `to` have just been bounds checked

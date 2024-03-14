@@ -101,12 +101,12 @@ impl VoiceParams {
     }
 
     #[inline]
-    fn unison_stack_mult(&self, index: usize) -> Float {
+    fn unison_stack_mult(&self, _index: usize) -> Float {
         Float::splat(1.)
     }
 
     #[inline]
-    fn frame_spread(&self, index: usize) -> Float {
+    fn frame_spread(&self, _index: usize) -> Float {
         Float::splat(0.)
     }
 }

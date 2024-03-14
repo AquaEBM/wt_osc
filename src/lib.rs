@@ -236,7 +236,7 @@ impl Processor for WTOsc {
         &mut self,
         cluster_idx: usize,
         voice_mask: TMask,
-        velocity: Float,
+        _velocity: Float,
         note: UInt,
     ) {
         let a4_phase_delta = Simd::splat(440. / self.sr);
