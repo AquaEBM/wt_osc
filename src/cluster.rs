@@ -34,7 +34,6 @@ unsafe fn permute_smoother_values(
     swap_index_cell_unchecked(this_target_vals, from, other_target_vals, to);
 }
 
-#[derive(Default)]
 pub struct WTOscClusterNormParams {
     level: GenericSmoother,
     pub frame: GenericSmoother,
@@ -46,6 +45,31 @@ pub struct WTOscClusterNormParams {
     pub detune_range: GenericSmoother,
     pub random: GenericSmoother,
     pub phase_delta: Float,
+}
+
+impl Default for WTOscClusterNormParams {
+    fn default() -> Self {
+        let mut out = Self {
+            level: Default::default(),
+            frame: Default::default(),
+            num_voices: Default::default(),
+            detune: Default::default(),
+            pan: Default::default(),
+            transpose: Default::default(),
+            stereo: Default::default(),
+            detune_range: Default::default(),
+            random: Default::default(),
+            phase_delta: Default::default(),
+        };
+
+        let all_voices = TMask::splat(true);
+
+        for (i, value) in DEFAULT_PARAMS.iter().copied().map(splat_stereo).enumerate() {
+            out.set_param_instantly(i as u64, value, all_voices);
+        }
+
+        out
+    }
 }
 
 impl WTOscClusterNormParams {

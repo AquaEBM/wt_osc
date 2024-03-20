@@ -5,7 +5,6 @@ extern crate alloc;
 mod cluster;
 mod oscillator;
 mod voice;
-
 mod basic_shapes;
 pub mod wavetable;
 
@@ -121,8 +120,9 @@ impl Processor for WTOsc {
                         out_sample.set(sum_to_stereo_sample(scratch));
                     }
                 } else {
-                    // Devices with AVX-512 (16 floats) can process all unison
-                    // voices at once so no need for the scratch buffer
+                    // On devices with vectors that can hold as many or more floats
+                    // as there are unison voices (e. g. AVX-512 for 16 voices)
+                    // a scratch buffer wouldn't be necessary
                     for out_sample in voice_samples {
                         let output = unsafe { first_osc.tick_all(table, mask) };
                         out_sample.set(sum_to_stereo_sample(output));
@@ -158,7 +158,7 @@ impl Processor for WTOsc {
             .take(max_num_clusters)
             .collect();
 
-        // On, devices with vectors that can hold as many or more floats as there are unison voices
+        // On devices with vectors that can hold as many or more floats as there are unison voices
         // (e. g. AVX-512 for 16 voices) a scratch buffer wouldn't be necessary
         self.scratch_buffer = unsafe {
             Box::new_uninit_slice((OSCS_PER_VOICE > 1) as usize * max_buffer_size).assume_init()
