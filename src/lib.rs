@@ -278,7 +278,7 @@ mod tests {
     use std::io::{self, Write};
 
     use polygraph::{
-        buffer::{BufferHandle, BufferIndices, OutputBufferIndex},
+        buffer::{BufferHandle, BufferNode, OutputBufferIndex},
         processor::{new_vfloat_buffer, ParamsList},
     };
 
@@ -320,8 +320,8 @@ mod tests {
         let buffers = Buffers::new(
             0,
             NonZeroUsize::new(MAX_BUFFER_SIZE).unwrap(),
-            BufferIndices::new(
-                BufferHandle::toplevel(intermediate_buffers.as_ref()),
+            BufferHandle::new(
+                BufferNode::toplevel(intermediate_buffers.as_mut()),
                 &[],
                 &[Some(OutputBufferIndex::Intermediate(0))],
             ),
