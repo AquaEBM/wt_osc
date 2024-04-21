@@ -2,10 +2,10 @@
 
 extern crate alloc;
 
+mod basic_shapes;
 mod cluster;
 mod oscillator;
 mod voice;
-mod basic_shapes;
 pub mod wavetable;
 
 use cluster::{WTOscClusterNormParams, WTOscVoiceCluster};
@@ -66,7 +66,6 @@ impl Processor for WTOsc {
             .get_output(0)
             .zip(NonZeroUsize::new(table.num_frames()))
         {
-            
             let smooth_dt = Float::splat(1.0 / buffer_size as f32);
 
             let cluster = &mut self.clusters[cluster_idx];
@@ -166,13 +165,7 @@ impl Processor for WTOsc {
         };
     }
 
-    fn set_param(
-        &mut self,
-        cluster_idx: usize,
-        voice_mask: TMask,
-        param_id: u64,
-        norm_val: Float,
-    ) {
+    fn set_param(&mut self, cluster_idx: usize, voice_mask: TMask, param_id: u64, norm_val: Float) {
         self.params[cluster_idx].set_param_target(param_id, norm_val, voice_mask);
     }
 

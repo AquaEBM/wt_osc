@@ -98,7 +98,7 @@ impl BandLimitedWaveTables {
 
         let fract = fxp_to_flp(phase << Self::V_NUM_OCTAVES);
 
-        let table_start = octaves + frame * Self::V_NUM_MIPMAPS << Self::V_NUM_OCTAVES;
+        let table_start = (octaves + frame * Self::V_NUM_MIPMAPS) << Self::V_NUM_OCTAVES;
 
         const ONE: UInt = const_splat(1);
 
@@ -108,6 +108,10 @@ impl BandLimitedWaveTables {
         (fract, table_start + phase_a, table_start + phase_b)
     }
 
+    /// # Safety
+    ///
+    /// Every value in `frame` whose corresponding `mask` value is enabled must be
+    /// strictly less than `self.num_frames()`
     #[inline]
     pub unsafe fn resample_select(
         &self,
@@ -132,6 +136,10 @@ impl BandLimitedWaveTables {
         lerp(a, b, fract)
     }
 
+    /// # Safety
+    ///
+    /// Every value in `frame` whose corresponding `mask` value is enabled must be
+    /// strictly less than `self.num_frames()`
     #[inline]
     pub unsafe fn resample(&self, phase_delta: UInt, frame: UInt, phase: UInt) -> Float {
         let (fract, start_idx, end_idx) = Self::get_resample_data(phase, frame, phase_delta);

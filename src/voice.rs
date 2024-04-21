@@ -62,7 +62,7 @@ impl VoiceParams {
         let one_u = UInt::splat(1);
         let two_u = UInt::splat(2);
         let last_voice_pair_idx =
-            UInt::splat(((MAX_UNISON + (MAX_UNISON & 1) >> 1) - 1).max(1) as u32);
+            UInt::splat((((MAX_UNISON + (MAX_UNISON & 1)) >> 1) - 1).max(1) as u32);
         let last_voice_pair_idx_f = last_voice_pair_idx.cast::<f32>();
         let max_float_bit_index = UInt::splat(mem::size_of::<f32>() as u32 * 8 - 1);
         let counting = UInt::from_array(array::from_fn(|i| i as u32));
