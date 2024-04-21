@@ -58,14 +58,15 @@ impl Processor for WTOsc {
         (0, 1)
     }
 
-    fn process(&mut self, buffers: Buffers<Float>, cluster_idx: usize, voice_mask: TMask) {
+    fn process(&mut self, mut buffers: Buffers<Float>, cluster_idx: usize, voice_mask: TMask) {
         let table = self.table.as_ref();
+        let buffer_size = buffers.buffer_size().get();
 
         if let Some((output_buf, num_frames)) = buffers
             .get_output(0)
             .zip(NonZeroUsize::new(table.num_frames()))
         {
-            let buffer_size = buffers.buffer_size().get();
+            
             let smooth_dt = Float::splat(1.0 / buffer_size as f32);
 
             let cluster = &mut self.clusters[cluster_idx];
@@ -90,9 +91,9 @@ impl Processor for WTOsc {
                     .unwrap();
 
                 let mask = first_osc.set_params_smoothed(&voice_params, 0, num_frames_f, smooth_dt);
-                let voice_samples = split_stereo_cell_slice(output_buf)
-                    .flatten()
-                    .iter()
+                let voice_samples = split_stereo_slice_mut(output_buf)
+                    .flatten_mut()
+                    .iter_mut()
                     .skip(voice_index)
                     .step_by(STEREO_VOICES_PER_VECTOR);
 
@@ -117,7 +118,7 @@ impl Processor for WTOsc {
                     }
 
                     for (out_sample, &scratch) in voice_samples.zip(scratch_buffer.iter()) {
-                        out_sample.set(sum_to_stereo_sample(scratch));
+                        *out_sample = sum_to_stereo_sample(scratch);
                     }
                 } else {
                     // On devices with vectors that can hold as many or more floats
@@ -125,7 +126,7 @@ impl Processor for WTOsc {
                     // a scratch buffer wouldn't be necessary
                     for out_sample in voice_samples {
                         let output = unsafe { first_osc.tick_all(table, mask) };
-                        out_sample.set(sum_to_stereo_sample(output));
+                        *out_sample = sum_to_stereo_sample(output);
                     }
                 }
             }
@@ -135,9 +136,9 @@ impl Processor for WTOsc {
             for poly_sample in output_buf {
                 let (normal, flipped) = cluster.get_sample_weights();
                 cluster.tick_weight_smoothers();
-                let sample = poly_sample.get();
+                let sample = *poly_sample;
                 let out = sample * normal + swap_stereo(sample) * flipped;
-                poly_sample.set(out);
+                *poly_sample = out;
             }
         }
     }
@@ -278,7 +279,7 @@ mod tests {
     use std::io::{self, Write};
 
     use polygraph::{
-        buffer::{BufferHandle, BufferNode, OutputBufferIndex},
+        buffer::{BufferNode, OutputBufferIndex},
         processor::{new_vfloat_buffer, ParamsList},
     };
 
@@ -317,15 +318,9 @@ mod tests {
 
         let mut intermediate_buffers = Box::new([new_vfloat_buffer::<Float>(MAX_BUFFER_SIZE)]);
 
-        let buffers = Buffers::new(
-            0,
-            NonZeroUsize::new(MAX_BUFFER_SIZE).unwrap(),
-            BufferHandle::new(
-                BufferNode::toplevel(intermediate_buffers.as_mut()),
-                &[],
-                &[Some(OutputBufferIndex::Intermediate(0))],
-            ),
-        );
+        let buffers = BufferNode::toplevel(intermediate_buffers.as_mut())
+            .with_indices(&[], &[Some(OutputBufferIndex::Intermediate(0))])
+            .with_buffer_pos(0, NonZeroUsize::new(MAX_BUFFER_SIZE).unwrap());
 
         osc.process(buffers, CLUSTER_IDX, voice_mask);
 
@@ -337,7 +332,7 @@ mod tests {
             .split_last_mut()
             .unwrap();
 
-        for sample in samples {
+        for sample in samples.iter() {
             writeln!(stdout, "{sample:?},").unwrap();
         }
 
