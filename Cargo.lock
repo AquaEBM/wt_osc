@@ -73,7 +73,7 @@ dependencies = [
 [[package]]
 name = "polygraph"
 version = "0.1.0"
-source = "git+https://github.com/AquaEBM/polygraph.git#a0c585245cecf5dcf156b54c5d3a0a51521d958d"
+source = "git+https://github.com/AquaEBM/polygraph.git#0c6bd3cd21db22e2a35e4aaf4b5f48f6ff7b578d"
 dependencies = [
  "fnv",
  "rtrb",
@@ -125,7 +125,7 @@ dependencies = [
 [[package]]
 name = "simd_util"
 version = "0.1.0"
-source = "git+https://github.com/AquaEBM/simd_util.git#0639df9cc5773e21d7b89b645d8d631ecf4d1242"
+source = "git+https://github.com/AquaEBM/simd_util.git#f86a528a83be22fca10a35045a8fb17e7247b47e"
 dependencies = [
  "cfg-if",
  "core_simd",

@@ -11,7 +11,7 @@ pub mod wavetable;
 use cluster::{WTOscClusterNormParams, WTOscVoiceCluster};
 use core::{any::Any, array, cell::Cell, f32::consts::FRAC_1_SQRT_2, iter, mem, num::NonZeroUsize};
 use polygraph::{
-    buffer::Buffers,
+    buffer::BufferHandle,
     processor::{Parameters, Processor},
     simd_util::{
         math::*,
@@ -58,7 +58,7 @@ impl Processor for WTOsc {
         (0, 1)
     }
 
-    fn process(&mut self, mut buffers: Buffers<Float>, cluster_idx: usize, voice_mask: TMask) {
+    fn process(&mut self, mut buffers: BufferHandle<Float>, cluster_idx: usize, voice_mask: TMask) {
         let table = self.table.as_ref();
         let buffer_size = buffers.buffer_size().get();
 
@@ -272,7 +272,7 @@ mod tests {
     use std::io::{self, Write};
 
     use polygraph::{
-        buffer::{BufferNode, OutputBufferIndex},
+        buffer::{LocalBufferNode, OutputBufferIndex},
         processor::{new_vfloat_buffer, ParamsList},
     };
 
@@ -311,8 +311,8 @@ mod tests {
 
         let mut intermediate_buffers = Box::new([new_vfloat_buffer::<Float>(MAX_BUFFER_SIZE)]);
 
-        let buffers = BufferNode::toplevel(intermediate_buffers.as_mut())
-            .with_indices(&[], &[Some(OutputBufferIndex::Intermediate(0))])
+        let buffers = LocalBufferNode::toplevel(intermediate_buffers.as_mut())
+            .with_indices(&[], &[Some(OutputBufferIndex::Local(0))])
             .with_buffer_pos(0, NonZeroUsize::new(MAX_BUFFER_SIZE).unwrap());
 
         osc.process(buffers, CLUSTER_IDX, voice_mask);
