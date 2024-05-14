@@ -58,7 +58,7 @@ impl Processor for WTOsc {
         (0, 1)
     }
 
-    fn process(&mut self, mut buffers: Buffers<Float>, cluster_idx: usize, voice_mask: TMask) {
+    fn process(&mut self, mut buffers: Buffers<Self::Sample>, cluster_idx: usize, voice_mask: TMask) {
         let table = self.table.as_ref();
 
         if let Some((output_buf, num_frames)) = buffers
