@@ -21,6 +21,6 @@ No effects, just two instances.
 
 https://github.com/AquaEBM/wt_osc/assets/79016373/867d9887-1b7f-429e-b0cb-40ee3cc7f5f5
 
-4 instances with different wavetables and transpose values + LFOTool (volume envelope because we don't have one) + OTT + Chorus + Delay + Reverb
+4 instances with different wavetables and transpose values + LFOTool (volume envelope because we don't have one) + Chorus + Delay + Reverb
 
 https://github.com/AquaEBM/wt_osc/assets/79016373/d7420983-d805-4d0f-bb44-3c80d166ca58
