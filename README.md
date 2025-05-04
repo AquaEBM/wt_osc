@@ -3,7 +3,7 @@
 Basic wavetable oscillator plugin written in Rust
 
 Note that this repository is no longer maintained, and the plugin itself is no longer installable, as this has been moved to a bigger
-project ([Mythril](https://github.com/AquaEBM/Mythril)) with the intention of being usied as an individual node as part of the modular synth.
+project ([Mythril](https://github.com/AquaEBM/mythril)) with the intention of being usied as an individual node as part of the modular synth.
 The demos hereafter are old recordings I have found from the time when this was it's own plugin.
 
 Bandlimited resampling techniques used are described in [this talk by Matt Tytel](https://www.youtube.com/watch?v=qlinVx60778)
