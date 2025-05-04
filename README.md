@@ -1,6 +1,6 @@
 # wt_osc
 
-Basic wavetable oscillator plugin written in Rust
+Basic wavetable oscillator written in Rust (archive)
 
 Note that this repository is no longer maintained, and the plugin itself is no longer installable, as this has been moved to a bigger
 project ([Mythril](https://github.com/AquaEBM/mythril)) with the intention of being usied as an individual node as part of the modular synth.
